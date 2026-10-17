@@ -28,21 +28,38 @@ export class Store {
     })
   }
 
+  /** 整個快取重算：啟動時、收到其他電腦的修改時 */
   private rebuild(): void {
     this.db.exec('BEGIN')
-    for (const [tb, def] of Object.entries(TABLES)) {
+    for (const tb of Object.keys(TABLES)) {
       this.db.run(`DELETE FROM ${tb}`)
-      for (const [id, row] of this.library.state.get(tb) ?? []) {
-        if (row.get(DELETED)?.v) continue
-        if (def.required.some((f) => row.get(f)?.v == null)) continue // 其他電腦的紀錄還沒同步完整
-        const fields = def.fields.filter((f) => row.get(f) !== undefined)
-        this.db.run(
-          `INSERT INTO ${tb} (id, ${fields.join(', ')}) VALUES (?, ${fields.map(() => '?').join(', ')})`,
-          [id, ...fields.map((f) => row.get(f)!.v as SqlValue)]
-        )
+      for (const id of this.library.state.get(tb)?.keys() ?? []) this.insertRow(tb, id)
+    }
+    this.db.exec('COMMIT')
+  }
+
+  /** 只重算這次修改到的資料列（資料多時，整個重算一次要半秒以上） */
+  private refreshRows(rows: Map<string, Set<string>>): void {
+    this.db.exec('BEGIN')
+    for (const [tb, ids] of rows) {
+      for (const id of ids) {
+        this.db.run(`DELETE FROM ${tb} WHERE id = ?`, [id])
+        this.insertRow(tb, id)
       }
     }
     this.db.exec('COMMIT')
+  }
+
+  private insertRow(tb: string, id: string): void {
+    const def = TABLES[tb]
+    const row = this.library.state.get(tb)?.get(id)
+    if (!row || row.get(DELETED)?.v) return
+    if (def.required.some((f) => row.get(f)?.v == null)) return // 其他電腦的紀錄還沒同步完整
+    const fields = def.fields.filter((f) => row.get(f) !== undefined)
+    this.db.run(
+      `INSERT INTO ${tb} (id, ${fields.join(', ')}) VALUES (?, ${fields.map(() => '?').join(', ')})`,
+      [id, ...fields.map((f) => row.get(f)!.v as SqlValue)]
+    )
   }
 
   all<T>(sql: string, params: SqlValue[] = []): T[] {
@@ -75,7 +92,12 @@ export class Store {
     })
     if (ops.length === 0) return
     this.library.append(ops)
-    this.rebuild()
+    const touched = new Map<string, Set<string>>()
+    for (const op of ops) {
+      if (!touched.has(op.tb)) touched.set(op.tb, new Set())
+      touched.get(op.tb)!.add(op.id)
+    }
+    this.refreshRows(touched)
     this.notify()
   }
 
