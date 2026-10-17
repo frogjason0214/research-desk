@@ -56,18 +56,23 @@ export class Gemini {
    * 多輪對話，邊產生邊回報（Server-Sent Events）。onText 收到的是目前為止的完整回覆。
    */
   async stream(contents: Turn[], system: string, onText: (text: string) => void, temperature = 0.7): Promise<string> {
-    if (!this.key) throw new Error('尚未設定 Gemini API 金鑰，請到「設定」填入。')
-    const res = await fetch(`${API}/${GEMINI_MODEL}:streamGenerateContent?alt=sse`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': this.key },
-      body: JSON.stringify({
-        contents,
-        generationConfig: { temperature },
-        systemInstruction: { parts: [{ text: system }] }
+    const key = this.key
+    if (!key) throw new Error('尚未設定 Gemini API 金鑰，請到「設定」填入。')
+    // 只在還沒開始回覆前重試，避免同一段回覆送兩次
+    const res = await withRetry(async () => {
+      const r = await fetch(`${API}/${GEMINI_MODEL}:streamGenerateContent?alt=sse`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({
+          contents,
+          generationConfig: { temperature },
+          systemInstruction: { parts: [{ text: system }] }
+        })
       })
+      if (!r.ok || !r.body) throw await apiError(r)
+      return r
     })
-    if (!res.ok || !res.body) throw await apiError(res)
-    const reader = res.body.getReader()
+    const reader = res.body!.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
     let full = ''
@@ -100,16 +105,19 @@ export class Gemini {
   }
 
   private async call(key: string, parts: Part[], config: object = {}, system?: string): Promise<string> {
-    const res = await fetch(`${API}/${GEMINI_MODEL}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts }],
-        generationConfig: { temperature: 0.2, ...config },
-        ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {})
+    const res = await withRetry(async () => {
+      const r = await fetch(`${API}/${GEMINI_MODEL}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts }],
+          generationConfig: { temperature: 0.2, ...config },
+          ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {})
+        })
       })
+      if (!r.ok) throw await apiError(r)
+      return r
     })
-    if (!res.ok) throw await apiError(res)
     const data = await res.json().catch(() => ({}))
     const text = data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? ''
     if (!text) throw new Error('Gemini 沒有回覆內容（可能被安全篩選擋下）。')
@@ -122,11 +130,59 @@ export interface Turn {
   parts: { text: string }[]
 }
 
+/** 額度用完：每分鐘上限可以等一下再試；每日上限要等太平洋時間午夜（台灣下午 3 或 4 點）重置 */
+export class QuotaError extends Error {
+  constructor(
+    message: string,
+    public daily: boolean,
+    public retryAfterMs: number | null
+  ) {
+    super(message)
+  }
+}
+
+interface ErrorDetail {
+  '@type'?: string
+  retryDelay?: string
+  violations?: { quotaId?: string; quotaValue?: string }[]
+}
+
 async function apiError(res: Response): Promise<Error> {
   const data = await res.json().catch(() => ({}))
   const msg: string = data.error?.message ?? ''
   if (res.status === 400 && /API key/i.test(msg)) return new Error('Gemini API 金鑰無效，請確認是否複製完整。')
   if (res.status === 403) return new Error('這把 Gemini 金鑰沒有權限，請確認 Google AI Studio 裡的專案設定。')
-  if (res.status === 429) return new Error('Gemini 免費額度暫時用完了，請稍後再試。')
+  if (res.status === 429) {
+    const details: ErrorDetail[] = data.error?.details ?? []
+    const violation = details.flatMap((d) => d.violations ?? [])[0]
+    const delay = details.find((d) => d.retryDelay)?.retryDelay
+    const retryAfterMs = delay ? Math.ceil(parseFloat(delay) * 1000) : null
+    const quotaId = violation?.quotaId ?? ''
+    const limit = violation?.quotaValue ? `（上限 ${violation.quotaValue}）` : ''
+    if (/PerDay/i.test(quotaId)) {
+      return new QuotaError(
+        `今天的 Gemini 免費額度已用完${limit}，台灣時間下午 3～4 點會重置。可以到 Google AI Studio 的「Rate limit」頁查看用量。`,
+        true,
+        null
+      )
+    }
+    const wait = retryAfterMs ? `約 ${Math.ceil(retryAfterMs / 1000)} 秒後` : '稍後'
+    return new QuotaError(`Gemini 免費額度每分鐘的上限到了${limit}，請${wait}再試。`, false, retryAfterMs)
+  }
   return new Error(`Gemini 錯誤（${res.status}）：${msg}`)
+}
+
+const MAX_AUTO_WAIT_MS = 60_000
+
+/** 遇到每分鐘上限時，依 Google 建議的時間等一次再試 */
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (err) {
+    if (err instanceof QuotaError && !err.daily && err.retryAfterMs !== null && err.retryAfterMs <= MAX_AUTO_WAIT_MS) {
+      await new Promise((r) => setTimeout(r, err.retryAfterMs! + 500))
+      return fn()
+    }
+    throw err
+  }
 }

@@ -11,13 +11,14 @@ import type {
 import { ROLE_LABELS } from '../../shared/types'
 import type { Store } from '../store'
 import { buildContext, systemPrompt, usedSources, type SearchFn } from './context'
-import type { Gemini, Turn } from './gemini'
+import { QuotaError, type Gemini, type Turn } from './gemini'
 import { searchWorks, type Work } from './openalex'
 
 // AI 教授：專案對話（多個對話、各有角色）、每日建議、推薦新文獻。
 
 const HISTORY_TURNS = 16
 const DAILY_ROLES: ProfessorRole[] = ['direction', 'methods', 'committee']
+const DAILY_RETRY_MS = 10 * 60 * 1000
 
 const now = (): string => new Date().toISOString()
 const pad = (n: number): string => String(n).padStart(2, '0')
@@ -46,6 +47,7 @@ export function createProfessor(opts: {
   const { store, gemini } = opts
   const streaming = new Set<string>()
   const generatingDaily = new Map<string, Promise<DailyTip | null>>()
+  const dailyFailures = new Map<string, { at: number; date: string; daily: boolean; error: Error }>()
 
   const conversation = (id: string): Conversation | undefined =>
     store.get<Conversation>('SELECT * FROM conversations WHERE id = ?', [id])
@@ -70,6 +72,8 @@ export function createProfessor(opts: {
   const queryFor = async (history: ChatMessage[], text: string): Promise<string> => {
     const lastModel = [...history].reverse().find((m) => m.role === 'model')
     const base = `${text} ${lastModel?.text.slice(0, 300) ?? ''}`
+    // 英文提問直接搜尋就好，不多花一次 AI 額度
+    if (!/[㐀-鿿]/.test(text)) return base
     try {
       const { keywords } = await gemini.json<{ keywords: string[] }>(
         [{ text: `把下面這段研究相關的問題整理成搜尋學術文獻全文用的關鍵字：英文 4～8 個、繁體中文 2～4 個（學術用語、量表或統計名稱）。\n\n${base.slice(0, 1500)}` }],
@@ -176,11 +180,27 @@ export function createProfessor(opts: {
         }
       },
 
-      /** 今天的建議（沒有就產生）；同一時間只產生一次 */
+      /**
+       * 今天的建議（沒有就產生）；同一時間只產生一次。
+       * 失敗後 10 分鐘內不再重試；每日額度用完則今天都不再試，避免每次展開邊欄都耗額度。
+       */
       'professor.daily': (projectId: string): Promise<DailyTip | null> => {
+        const failed = dailyFailures.get(projectId)
+        if (failed && (failed.date === today() && (failed.daily || Date.now() - failed.at < DAILY_RETRY_MS))) {
+          return Promise.reject(failed.error)
+        }
         let p = generatingDaily.get(projectId)
         if (!p) {
-          p = generateDaily(projectId).finally(() => generatingDaily.delete(projectId))
+          p = generateDaily(projectId)
+            .then((tip) => {
+              dailyFailures.delete(projectId)
+              return tip
+            })
+            .catch((err: Error) => {
+              dailyFailures.set(projectId, { at: Date.now(), date: today(), daily: err instanceof QuotaError && err.daily, error: err })
+              throw err
+            })
+            .finally(() => generatingDaily.delete(projectId))
           generatingDaily.set(projectId, p)
         }
         return p
