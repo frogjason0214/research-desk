@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import type { Milestone, Task } from '../../../shared/types'
+import type { Milestone, Task, UpdateStatus } from '../../../shared/types'
 import { AddTask } from '../components/AddTask'
-import { ErrorBanner, GoogleBanner, SyncBanner } from '../components/Banners'
+import { ErrorBanner, GoogleBanner, SyncBanner, UpdateBanner } from '../components/Banners'
 import { Countdown } from '../components/Countdown'
 import { CreateProject } from '../components/CreateProject'
 import { EditableTitle } from '../components/EditableTitle'
@@ -98,6 +98,7 @@ export function FullWindow() {
       <main className="main">
         <SyncBanner status={state.status} onRetry={() => run(() => desk.sync.now())} />
         <GoogleBanner status={state.status} onSignIn={() => run(() => desk.google.signIn())} />
+        <UpdateBanner status={state.status} onInstall={() => run(() => desk.update.install())} />
         <ErrorBanner error={error} onClose={clearError} />
 
         {page === 'calendar' ? (
@@ -147,6 +148,25 @@ export function FullWindow() {
 }
 
 type Run = (fn: () => Promise<unknown>) => Promise<void>
+
+function updateText(u: UpdateStatus): string {
+  switch (u.state) {
+    case 'dev':
+      return '（開發模式，不檢查更新）'
+    case 'checking':
+      return '・正在檢查更新…'
+    case 'latest':
+      return '・已是最新版本'
+    case 'downloading':
+      return `・正在下載 ${u.version}（${u.progress ?? 0}%）`
+    case 'ready':
+      return `・新版本 ${u.version} 已下載`
+    case 'error':
+      return `・檢查更新失敗：${u.error}`
+    default:
+      return ''
+  }
+}
 
 function MilestonesView({ state, run }: { state: DeskState; run: Run }) {
   const [title, setTitle] = useState('')
@@ -322,7 +342,25 @@ function SettingsView({ state, run, onDeleted }: { state: DeskState; run: Run; o
           />
           開機時自動啟動
         </label>
-        <p className="muted">版本 {state.status.version}</p>
+        <p className="muted">
+          版本 {state.status.version}
+          {updateText(state.status.update)}
+        </p>
+        {state.status.update.state === 'ready' ? (
+          <button className="btn btn-primary" onClick={() => run(() => desk.update.install())}>
+            重新啟動並更新
+          </button>
+        ) : (
+          state.status.update.state !== 'dev' && (
+            <button
+              className="btn"
+              disabled={state.status.update.state === 'checking' || state.status.update.state === 'downloading'}
+              onClick={() => run(() => desk.update.check())}
+            >
+              檢查更新
+            </button>
+          )
+        )}
         <button className="btn" onClick={() => desk.window.quit()}>
           結束程式
         </button>

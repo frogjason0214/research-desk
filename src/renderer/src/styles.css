@@ -192,6 +192,10 @@ input[type='checkbox'] {
   background: var(--warn-soft);
   color: var(--warn);
 }
+.banner-info {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
 .banner-error {
   background: var(--warn-soft);
   color: var(--danger);

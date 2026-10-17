@@ -9,6 +9,15 @@ asarUnpack:
   - node_modules/sql.js/dist/*.wasm
 win:
   target: nsis
+# 檔名不要有空格，GitHub 會把空格換成點，自動更新會找不到檔案
+artifactName: ResearchDesk-Setup-${version}.${ext}
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  shortcutName: Research Desk
+# 發布到 GitHub Releases；安裝版啟動時從這裡檢查更新
+publish:
+  provider: github
+  owner: frogjason0214
+  repo: research-desk
+  releaseType: release

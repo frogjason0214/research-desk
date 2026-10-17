@@ -102,8 +102,17 @@ export interface SidebarLayout {
   dragging: boolean
 }
 
+export interface UpdateStatus {
+  /** dev：開發模式不檢查；latest：已是最新版；ready：新版已下載，重新啟動即可更新 */
+  state: 'dev' | 'idle' | 'checking' | 'latest' | 'downloading' | 'ready' | 'error'
+  version?: string
+  progress?: number
+  error?: string
+}
+
 export interface AppStatus {
   sync: SyncStatus
+  update: UpdateStatus
   google: GoogleStatus & {
     /** 待辦同步到行事曆時最後一次的錯誤 */
     taskSyncError: string | null
@@ -162,6 +171,11 @@ export interface DeskApi {
     create(input: EventInput): Promise<void>
     update(calendarId: string, id: string, input: EventInput): Promise<void>
     remove(calendarId: string, id: string): Promise<void>
+  }
+  update: {
+    check(): Promise<void>
+    /** 結束程式並安裝已下載的新版本 */
+    install(): Promise<void>
   }
   settings: {
     openDataDir(): Promise<void>

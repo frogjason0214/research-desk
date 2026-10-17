@@ -46,6 +46,10 @@ const api: DeskApi = {
     update: call('calendar.update'),
     remove: call('calendar.remove')
   },
+  update: {
+    check: call('update.check'),
+    install: call('update.install')
+  },
   settings: {
     openDataDir: call('settings.openDataDir'),
     setLaunchAtLogin: call('settings.setLaunchAtLogin')

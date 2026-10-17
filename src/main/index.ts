@@ -7,6 +7,7 @@ import { createGoogle } from './google'
 import { createDataHandlers } from './handlers'
 import { Library, LIBRARY_FOLDER, type AttachChoice, type AttachResult } from './library'
 import { Store } from './store'
+import { createUpdater } from './updater'
 
 const SIDEBAR_EXPANDED = 320
 const SIDEBAR_COLLAPSED = 28
@@ -20,6 +21,15 @@ let config: LocalConfig
 let store: Store
 let library: Library
 let google: ReturnType<typeof createGoogle>
+let updater: ReturnType<typeof createUpdater>
+let flushed = false
+
+/** 結束前把還沒上傳的修改寫進雲端資料夾 */
+async function flushBeforeQuit(): Promise<void> {
+  if (flushed) return
+  await library?.flush().catch(() => {})
+  flushed = true
+}
 
 // ---------- 視窗 ----------
 
@@ -150,6 +160,7 @@ function status(): AppStatus {
       lastSyncAt: library.lastSyncAt
     },
     google: google.status(),
+    update: updater.status(),
     dataDir: library.dataDir,
     currentProjectId: config.currentProjectId ?? null,
     launchAtLogin: app.getLoginItemSettings().openAtLogin,
@@ -167,6 +178,8 @@ function registerIpc(): void {
     ...data,
     ...(google.handlers as Record<string, (...args: never[]) => unknown>),
     status,
+    'update.check': () => updater.check(),
+    'update.install': () => updater.install(),
     'sync.candidates': () => detectCloudFolders(),
     'sync.pickFolder': async () => {
       const result = await dialog.showOpenDialog({
@@ -251,6 +264,8 @@ if (!app.requestSingleInstanceLock()) {
     await store.open()
     store.onChange(broadcastChanged)
 
+    updater = createUpdater({ onChange: broadcastChanged, beforeInstall: flushBeforeQuit })
+
     google = createGoogle({
       store,
       userData: app.getPath('userData'),
@@ -282,13 +297,9 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   // 結束前把還沒上傳的修改寫進雲端資料夾
-  let flushed = false
   app.on('before-quit', (event) => {
     if (flushed || !library) return
     event.preventDefault()
-    library.flush().finally(() => {
-      flushed = true
-      app.quit()
-    })
+    flushBeforeQuit().finally(() => app.quit())
   })
 }

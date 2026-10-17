@@ -26,6 +26,19 @@ export function GoogleBanner({ status, onSignIn }: { status: AppStatus; onSignIn
   )
 }
 
+/** 新版本已下載完成 */
+export function UpdateBanner({ status, onInstall }: { status: AppStatus; onInstall: () => void }) {
+  if (status.update.state !== 'ready') return null
+  return (
+    <div className="banner banner-info" role="status">
+      <p>新版本 {status.update.version} 已下載，重新啟動即可更新。</p>
+      <button className="btn" onClick={onInstall}>
+        重新啟動
+      </button>
+    </div>
+  )
+}
+
 export function ErrorBanner({ error, onClose }: { error: string | null; onClose: () => void }) {
   if (!error) return null
   return (
