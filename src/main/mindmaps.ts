@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import type {
   LinkType,
+  MarkPatch,
   MindMap,
+  MindMark,
+  NewMark,
   MindNode,
   NodeLinks,
   NodePatch,
@@ -92,6 +95,7 @@ export function createMindmapHandlers(store: Store) {
       store.write((tx) => {
         removeLinksOf(tx, ids)
         ids.forEach((n) => tx.remove('mm_nodes', n))
+        store.all<{ id: string }>('SELECT id FROM mm_marks WHERE map_id = ?', [id]).forEach((m) => tx.remove('mm_marks', m.id))
         tx.remove('mindmaps', id)
       })
     },
@@ -144,6 +148,19 @@ export function createMindmapHandlers(store: Store) {
         ids.forEach((n) => tx.remove('mm_nodes', n))
       })
     },
+
+    'marks.list': (mapId: string): MindMark[] =>
+      store.all<MindMark>('SELECT * FROM mm_marks WHERE map_id = ? ORDER BY created_at', [mapId]),
+
+    'marks.add': (mapId: string, mark: NewMark): string => {
+      const id = randomUUID()
+      store.write((tx) => tx.set('mm_marks', id, { ...mark, map_id: mapId, created_at: now() }))
+      return id
+    },
+
+    'marks.update': (id: string, patch: MarkPatch): void => store.write((tx) => tx.set('mm_marks', id, { ...patch })),
+
+    'marks.remove': (id: string): void => store.write((tx) => tx.remove('mm_marks', id)),
 
     'links.add': (t1: LinkType, id1: string, t2: LinkType, id2: string): void => {
       const { id, ...fields } = normalize(t1, id1, t2, id2)

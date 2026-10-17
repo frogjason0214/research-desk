@@ -17,15 +17,31 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { toPng } from 'html-to-image'
-import { FileUp, GitFork, ImageDown, Link2, ListPlus, Maximize, Network, Plus, Trash2 } from 'lucide-react'
+import {
+  Eraser,
+  FileUp,
+  GitFork,
+  ImageDown,
+  Link2,
+  ListPlus,
+  Maximize,
+  MousePointer2,
+  Network,
+  Pencil,
+  Plus,
+  StickyNote,
+  Trash2,
+  Undo2
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Focus, MindMap, MindNode, NodeLinks, Paper, Task } from '../../../shared/types'
+import type { Focus, MarkColor, MindMap, MindNode, NodeLinks, Paper, Task } from '../../../shared/types'
 import { EditableTitle } from '../components/EditableTitle'
 import { IconButton } from '../components/IconButton'
 import { relativeDay } from '../dates'
 import { importPdfFile, isPdf, JobList, useImportJobs } from '../importing'
 import { tidyLayout, type LayoutMode } from '../mindLayout'
 import { desk } from '../useDesk'
+import { MARK_COLORS, MarkLayer, marksBounds, PEN_SIZES, useDrawing, useMarks, type Tool } from './MindMarks'
 
 type Run = (fn: () => Promise<unknown>) => Promise<void>
 
@@ -334,6 +350,26 @@ function MapCanvas({
   // 拖 PDF 進畫布：undefined＝沒在拖、null＝在空白處、字串＝在那個節點上
   const [dropNode, setDropNode] = useState<string | null | undefined>(undefined)
 
+  // 畫筆、橡皮擦、便利貼
+  const [tool, setTool] = useState<Tool>('select')
+  const [penColor, setPenColor] = useState<MarkColor>('red')
+  const [penSize, setPenSize] = useState(2)
+  const [focusNote, setFocusNote] = useState<string | null>(null)
+  const marks = useMarks(map.id, run)
+  const drawing = useDrawing({
+    tool,
+    color: penColor,
+    size: penSize,
+    marks: marks.marks,
+    onStroke: (points) => void marks.add({ kind: 'stroke', color: penColor, size: penSize, points: JSON.stringify(points), x: 0, y: 0, w: 0, text: '' }),
+    onErase: (id) => void marks.remove(id),
+    onNote: async (x, y) => {
+      setTool('select')
+      const id = await marks.add({ kind: 'note', color: 'ink', size: 0, points: '[]', x: Math.round(x), y: Math.round(y), w: 180, text: '' })
+      setFocusNote(id)
+    }
+  })
+
   const load = useCallback(async () => {
     const [list, c] = await Promise.all([desk.nodes.list(map.id), desk.links.forMap(map.id)])
     setNodes(list)
@@ -509,7 +545,17 @@ function MapCanvas({
     // 只處理畫布本身的按鍵；側欄裡的輸入框、按鈕不受影響
     const target = e.target as HTMLElement
     const field = target.tagName === 'INPUT' || (target.tagName === 'TEXTAREA' && !target.dataset.armed)
-    if (editing || !selected || field) return
+    if (editing || field) return
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault()
+      void marks.undo()
+      return
+    }
+    if (e.key === 'Escape' && tool !== 'select') {
+      setTool('select')
+      return
+    }
+    if (!selected) return
     if (target !== wrapper.current && !target.closest('.react-flow')) return
     const n = nodes.find((x) => x.id === selected)
     if (!n) return
@@ -549,7 +595,19 @@ function MapCanvas({
     run(async () => {
       const all = flow.getNodes()
       if (!all.length) return
-      const bounds = getNodesBounds(all)
+      // 範圍包含筆跡與便利貼
+      let bounds = getNodesBounds(all)
+      const extra = marksBounds(marks.marks, wrapper.current)
+      if (extra) {
+        const x = Math.min(bounds.x, extra.x)
+        const y = Math.min(bounds.y, extra.y)
+        bounds = {
+          x,
+          y,
+          width: Math.max(bounds.x + bounds.width, extra.x + extra.width) - x,
+          height: Math.max(bounds.y + bounds.height, extra.y + extra.height) - y
+        }
+      }
       const width = Math.round(Math.max(800, bounds.width + 160))
       const height = Math.round(Math.max(500, bounds.height + 160))
       const vp = getViewportForBounds(bounds, width, height, 0.2, 2, 0.08)
@@ -600,6 +658,38 @@ function MapCanvas({
           active={panelOpen && !!sel}
           onClick={() => setPanelOpen(!panelOpen)}
         />
+        <span className="mm-toolbar-sep" />
+        <IconButton icon={MousePointer2} label="選取與移動（Esc）" active={tool === 'select'} onClick={() => setTool('select')} />
+        <IconButton icon={Pencil} label="畫筆" active={tool === 'pen'} onClick={() => setTool('pen')} />
+        <IconButton icon={Eraser} label="橡皮擦（擦掉整條筆跡）" active={tool === 'eraser'} onClick={() => setTool('eraser')} />
+        <IconButton icon={StickyNote} label="便利貼：在畫布上點一下放置" active={tool === 'note'} onClick={() => setTool('note')} />
+        <IconButton icon={Undo2} label="復原筆跡與便利貼（Ctrl+Z）" onClick={() => void marks.undo()} />
+        {tool === 'pen' && (
+          <span className="mm-pen-opts" role="group" aria-label="畫筆設定">
+            {MARK_COLORS.map((c) => (
+              <button
+                key={c.key}
+                className={`mm-swatch is-${c.key}${penColor === c.key ? ' is-on' : ''}`}
+                aria-label={`${c.label}色`}
+                aria-pressed={penColor === c.key}
+                title={`${c.label}色`}
+                onClick={() => setPenColor(c.key)}
+              />
+            ))}
+            {PEN_SIZES.map((p) => (
+              <button
+                key={p.size}
+                className={`mm-size${penSize === p.size ? ' is-on' : ''}`}
+                aria-label={`${p.label}筆`}
+                aria-pressed={penSize === p.size}
+                title={`${p.label}筆`}
+                onClick={() => setPenSize(p.size)}
+              >
+                <span style={{ height: p.size + 1 }} />
+              </button>
+            ))}
+          </span>
+        )}
         <span className="spacer" />
         <IconButton icon={GitFork} label="整理：向右展開" onClick={() => tidy('right')} />
         <IconButton icon={Network} label="整理：左右平衡" onClick={() => tidy('balanced')} />
@@ -613,10 +703,11 @@ function MapCanvas({
       )}
       <div className="mm-body">
         <div
-          className={`mm-canvas${dropNode !== undefined ? ' is-dragging' : ''}`}
+          className={`mm-canvas tool-${tool}${dropNode !== undefined ? ' is-dragging' : ''}`}
           ref={wrapper}
           tabIndex={0}
           onKeyDown={onKeyDown}
+          {...drawing.handlers}
           onDragOver={(e) => {
             if (!e.dataTransfer.types.includes('Files')) return
             e.preventDefault()
@@ -696,6 +787,16 @@ function MapCanvas({
           >
             <Background gap={24} size={1} />
             <Controls showInteractive={false} />
+            <MarkLayer
+              marks={marks.marks}
+              live={drawing.live}
+              liveStyle={drawing.liveStyle}
+              focusNote={focusNote}
+              onNoteText={(m, text) => void (text.trim() ? marks.update(m.id, { text }) : marks.remove(m.id))}
+              onNoteMove={(m, x, y) => void marks.update(m.id, { x, y })}
+              onNoteResize={(m, w) => void marks.update(m.id, { w })}
+              onNoteRemove={(m) => void marks.remove(m.id)}
+            />
           </ReactFlow>
           {dropNode !== undefined && <p className="mm-drop-hint">{dropText}</p>}
           <JobList jobs={imports.jobs} className="mm-jobs" />

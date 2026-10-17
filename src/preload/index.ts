@@ -64,6 +64,12 @@ const api: DeskApi = {
     remove: call('nodes.remove'),
     createTask: call('nodes.createTask')
   },
+  marks: {
+    list: call('marks.list'),
+    add: call('marks.add'),
+    update: call('marks.update'),
+    remove: call('marks.remove')
+  },
   links: {
     add: call('links.add'),
     remove: call('links.remove'),

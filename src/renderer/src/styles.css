@@ -2173,3 +2173,180 @@ a.btn {
 .mm-panel {
   position: relative;
 }
+
+/* ---------- 心智圖：畫筆、橡皮擦、便利貼 ---------- */
+
+:root {
+  --mark-ink: var(--ink);
+  --mark-red: #d64545;
+  --mark-blue: #3b6fd8;
+  --mark-green: #2f9461;
+  --note-bg: #fff6c7;
+  --note-bar: #f6e79a;
+  --note-ink: #3b3420;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --mark-red: #f07a7a;
+    --mark-blue: #7fa6f5;
+    --mark-green: #6cc495;
+    --note-bg: #4a4322;
+    --note-bar: #5c532a;
+    --note-ink: #f3ecd0;
+  }
+}
+.mm-toolbar {
+  align-items: center;
+}
+.mm-toolbar-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 4px;
+  background: var(--rule);
+}
+.mm-pen-opts {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-left: 1px solid var(--rule);
+}
+.mm-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--panel);
+  box-shadow: 0 0 0 1px var(--rule);
+  padding: 0;
+  cursor: pointer;
+  background: var(--c);
+}
+.mm-swatch.is-on {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.mm-swatch.is-ink,
+.mm-stroke.is-ink {
+  --c: var(--mark-ink);
+}
+.mm-swatch.is-red,
+.mm-stroke.is-red {
+  --c: var(--mark-red);
+}
+.mm-swatch.is-blue,
+.mm-stroke.is-blue {
+  --c: var(--mark-blue);
+}
+.mm-swatch.is-green,
+.mm-stroke.is-green {
+  --c: var(--mark-green);
+}
+.mm-size {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.mm-size span {
+  width: 16px;
+  border-radius: 999px;
+  background: var(--ink);
+}
+.mm-size.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.mm-canvas.tool-pen .react-flow__pane,
+.mm-canvas.tool-pen .react-flow__node {
+  cursor: crosshair;
+}
+.mm-canvas.tool-eraser .react-flow__pane,
+.mm-canvas.tool-eraser .react-flow__node {
+  cursor: cell;
+}
+.mm-canvas.tool-note .react-flow__pane,
+.mm-canvas.tool-note .react-flow__node {
+  cursor: copy;
+}
+.mm-strokes {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+}
+.mm-stroke {
+  fill: none;
+  stroke: var(--c);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mm-note {
+  position: absolute;
+  pointer-events: all;
+  background: var(--note-bg);
+  color: var(--note-ink);
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.15);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.mm-note-bar {
+  height: 16px;
+  background: var(--note-bar);
+  border-radius: 4px 4px 0 0;
+  cursor: grab;
+  display: flex;
+  justify-content: flex-end;
+  touch-action: none;
+}
+.mm-note-bar:active {
+  cursor: grabbing;
+}
+.mm-note-remove {
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 0 4px;
+  cursor: pointer;
+  opacity: 0;
+  display: inline-flex;
+  align-items: center;
+}
+.mm-note:hover .mm-note-remove,
+.mm-note-remove:focus-visible {
+  opacity: 0.7;
+}
+.mm-note-text {
+  display: block;
+  width: 100%;
+  min-height: 2.5em;
+  field-sizing: content;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 6px 10px 10px;
+}
+.mm-note-text::placeholder {
+  color: color-mix(in srgb, var(--note-ink) 45%, transparent);
+}
+.mm-note-size {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  cursor: ew-resize;
+  touch-action: none;
+  background: linear-gradient(135deg, transparent 50%, color-mix(in srgb, var(--note-ink) 30%, transparent) 50%);
+  border-radius: 0 0 4px 0;
+}

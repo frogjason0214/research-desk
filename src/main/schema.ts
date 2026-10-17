@@ -32,6 +32,11 @@ export const TABLES: Record<string, { fields: string[]; required: string[] }> = 
     fields: ['map_id', 'parent_id', 'text', 'x', 'y', 'collapsed', 'color', 'created_at', 'folder'],
     required: ['map_id']
   },
+  // 心智圖上的手繪筆跡（stroke）與便利貼（note），位置是畫布座標；points 是 JSON 數字陣列
+  mm_marks: {
+    fields: ['map_id', 'kind', 'color', 'size', 'points', 'x', 'y', 'w', 'text', 'created_at'],
+    required: ['map_id', 'kind']
+  },
   conversations: {
     fields: ['project_id', 'title', 'role', 'created_at', 'updated_at'],
     required: ['project_id', 'role']
@@ -76,6 +81,11 @@ CREATE TABLE mm_nodes (
   x REAL DEFAULT 0, y REAL DEFAULT 0, collapsed INTEGER DEFAULT 0, color TEXT DEFAULT '', created_at TEXT, folder TEXT
 );
 CREATE INDEX idx_nodes_map ON mm_nodes(map_id);
+CREATE TABLE mm_marks (
+  id TEXT PRIMARY KEY, map_id TEXT, kind TEXT, color TEXT DEFAULT 'ink', size REAL DEFAULT 2, points TEXT DEFAULT '[]',
+  x REAL DEFAULT 0, y REAL DEFAULT 0, w REAL DEFAULT 180, text TEXT DEFAULT '', created_at TEXT
+);
+CREATE INDEX idx_marks_map ON mm_marks(map_id);
 CREATE TABLE links (id TEXT PRIMARY KEY, a_type TEXT, a_id TEXT, b_type TEXT, b_id TEXT);
 CREATE TABLE conversations (id TEXT PRIMARY KEY, project_id TEXT, title TEXT DEFAULT '', role TEXT, created_at TEXT, updated_at TEXT);
 CREATE TABLE messages (id TEXT PRIMARY KEY, conversation_id TEXT, role TEXT, text TEXT DEFAULT '', sources TEXT DEFAULT '[]', created_at TEXT);

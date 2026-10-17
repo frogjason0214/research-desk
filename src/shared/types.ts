@@ -173,6 +173,28 @@ export interface MindNode {
 
 export type NodePatch = Partial<Pick<MindNode, 'text' | 'x' | 'y' | 'collapsed' | 'color'>>
 
+export type MarkColor = 'ink' | 'red' | 'blue' | 'green'
+
+/** 心智圖上的手繪筆跡或便利貼，固定在畫布座標上（不跟著節點移動） */
+export interface MindMark {
+  id: string
+  map_id: string
+  kind: 'stroke' | 'note'
+  color: MarkColor
+  /** 筆跡粗細（畫布單位） */
+  size: number
+  /** 筆跡的點：JSON 字串 [x1, y1, x2, y2, …] */
+  points: string
+  /** 便利貼左上角與寬度 */
+  x: number
+  y: number
+  w: number
+  text: string
+}
+
+export type NewMark = Omit<MindMark, 'id' | 'map_id'>
+export type MarkPatch = Partial<Pick<MindMark, 'x' | 'y' | 'w' | 'text' | 'color'>>
+
 export type LinkType = 'node' | 'task' | 'paper'
 
 /** 指向某個心智圖節點 */
@@ -421,6 +443,12 @@ export interface DeskApi {
     move(moves: { id: string; x: number; y: number }[]): Promise<void>
     remove(id: string): Promise<void>
     createTask(nodeId: string, title: string, dueDate: string | null): Promise<void>
+  }
+  marks: {
+    list(mapId: string): Promise<MindMark[]>
+    add(mapId: string, mark: NewMark): Promise<string>
+    update(id: string, patch: MarkPatch): Promise<void>
+    remove(id: string): Promise<void>
   }
   links: {
     add(t1: LinkType, id1: string, t2: LinkType, id2: string): Promise<void>
