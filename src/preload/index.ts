@@ -1,0 +1,66 @@
+import { contextBridge, ipcRenderer } from 'electron'
+import type { DeskApi } from '../shared/types'
+
+// 畫面只能透過這個橋接物件存取資料，無法直接碰到檔案系統
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const call = (method: string) => (...args: unknown[]): Promise<any> => ipcRenderer.invoke('desk:call', method, args)
+
+const api: DeskApi = {
+  status: call('status'),
+  projects: {
+    list: call('projects.list'),
+    create: call('projects.create'),
+    rename: call('projects.rename'),
+    remove: call('projects.remove'),
+    setCurrent: call('projects.setCurrent')
+  },
+  milestones: {
+    list: call('milestones.list'),
+    create: call('milestones.create'),
+    update: call('milestones.update'),
+    remove: call('milestones.remove'),
+    move: call('milestones.move'),
+    setDefense: call('milestones.setDefense')
+  },
+  tasks: {
+    list: call('tasks.list'),
+    create: call('tasks.create'),
+    update: call('tasks.update'),
+    remove: call('tasks.remove')
+  },
+  sync: {
+    candidates: call('sync.candidates'),
+    pickFolder: call('sync.pickFolder'),
+    enable: call('sync.enable'),
+    disable: call('sync.disable'),
+    now: call('sync.now')
+  },
+  settings: {
+    openDataDir: call('settings.openDataDir'),
+    setLaunchAtLogin: call('settings.setLaunchAtLogin')
+  },
+  window: {
+    setSidebarLayout: (layout) => ipcRenderer.invoke('window:setSidebarLayout', layout),
+    saveSidebarTop: (ratio) => ipcRenderer.invoke('window:saveSidebarTop', ratio),
+    openFull: () => ipcRenderer.invoke('window:openFull'),
+    closeFull: () => ipcRenderer.invoke('window:closeFull'),
+    quit: () => ipcRenderer.invoke('window:quit')
+  },
+  onSidebarHover: (callback) => {
+    const enter = (): void => callback('enter')
+    const leave = (): void => callback('leave')
+    ipcRenderer.on('sidebar:enter', enter)
+    ipcRenderer.on('sidebar:leave', leave)
+    return () => {
+      ipcRenderer.removeListener('sidebar:enter', enter)
+      ipcRenderer.removeListener('sidebar:leave', leave)
+    }
+  },
+  onChanged: (callback) => {
+    const handler = (): void => callback()
+    ipcRenderer.on('desk:changed', handler)
+    return () => ipcRenderer.removeListener('desk:changed', handler)
+  }
+}
+
+contextBridge.exposeInMainWorld('desk', api)

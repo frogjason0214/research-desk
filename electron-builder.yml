@@ -1,0 +1,14 @@
+appId: tw.research-desk.app
+productName: Research Desk
+directories:
+  output: dist
+files:
+  - out/**
+  - package.json
+asarUnpack:
+  - node_modules/sql.js/dist/*.wasm
+win:
+  target: nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
