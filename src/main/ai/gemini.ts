@@ -76,31 +76,44 @@ export class Gemini {
     const decoder = new TextDecoder()
     let buffer = ''
     let full = ''
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      // 每個事件以空行分隔，內容在 data: 之後
-      let cut: number
-      while ((cut = buffer.indexOf('\n\n')) >= 0) {
-        const event = buffer.slice(0, cut)
-        buffer = buffer.slice(cut + 2)
-        for (const line of event.split('\n')) {
-          if (!line.startsWith('data:')) continue
-          try {
-            const data = JSON.parse(line.slice(5))
-            const piece = data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? ''
-            if (piece) {
-              full += piece
-              onText(full)
-            }
-          } catch {
-            /* 不完整的事件，忽略 */
+    let blocked = ''
+    const handle = (event: string): void => {
+      for (const line of event.split('\n')) {
+        if (!line.startsWith('data:')) continue
+        try {
+          const data = JSON.parse(line.slice(5))
+          const parts: { text?: string; thought?: boolean }[] = data.candidates?.[0]?.content?.parts ?? []
+          // 模型的「思考過程」不顯示
+          const piece = parts.filter((p) => !p.thought).map((p) => p.text ?? '').join('')
+          if (piece) {
+            full += piece
+            onText(full)
           }
+          blocked ||= data.promptFeedback?.blockReason ?? ''
+        } catch {
+          /* 不完整的事件，忽略 */
         }
       }
     }
-    if (!full) throw new Error('Gemini 沒有回覆內容（可能被安全篩選擋下），請換個說法再試。')
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      // Gemini 的事件以 \r\n\r\n 分隔；統一成 \n 再切
+      buffer += decoder.decode(value, { stream: true }).replace(/\r/g, '')
+      let cut: number
+      while ((cut = buffer.indexOf('\n\n')) >= 0) {
+        handle(buffer.slice(0, cut))
+        buffer = buffer.slice(cut + 2)
+      }
+    }
+    if (buffer.trim()) handle(buffer)
+    if (!full) {
+      throw new Error(
+        blocked
+          ? `Gemini 擋下了這次的問題（${blocked}），請換個說法再試。`
+          : 'Gemini 沒有回覆內容（可能被安全篩選擋下），請換個說法再試。'
+      )
+    }
     return full
   }
 
