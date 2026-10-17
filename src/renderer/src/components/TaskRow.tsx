@@ -1,4 +1,4 @@
-import type { Task } from '../../../shared/types'
+import type { Focus, Task, TaskLinks } from '../../../shared/types'
 import { relativeDay, todayStr } from '../dates'
 
 interface Props {
@@ -8,9 +8,12 @@ interface Props {
   onRename?: (title: string) => void
   onDate?: (date: string | null) => void
   onRemove?: () => void
+  /** 這個待辦連到的心智圖節點與文獻 */
+  links?: TaskLinks
+  onNavigate?: (f: Focus) => void
 }
 
-export function TaskRow({ task, onToggle, editable, onRename, onDate, onRemove }: Props) {
+export function TaskRow({ task, onToggle, editable, onRename, onDate, onRemove, links, onNavigate }: Props) {
   const overdue = !task.done && task.due_date !== null && task.due_date < todayStr()
   return (
     <li className={`task-row${task.done ? ' is-done' : ''}${overdue ? ' is-overdue' : ''}`}>
@@ -30,6 +33,30 @@ export function TaskRow({ task, onToggle, editable, onRename, onDate, onRemove }
         />
       ) : (
         <span className="task-title">{task.title}</span>
+      )}
+      {links && onNavigate && (links.nodes.length > 0 || links.papers.length > 0) && (
+        <span className="task-links">
+          {links.nodes.map((n) => (
+            <button
+              key={n.nodeId}
+              className="badge is-link"
+              onClick={() => onNavigate({ page: 'mindmap', mapId: n.mapId, nodeId: n.nodeId })}
+              title={`心智圖「${n.mapName}」`}
+            >
+              節點：{n.text}
+            </button>
+          ))}
+          {links.papers.map((p) => (
+            <button
+              key={p.id}
+              className="badge is-link"
+              onClick={() => onNavigate({ page: 'literature', paperId: p.id })}
+              title={p.title}
+            >
+              文獻：{p.title.length > 24 ? `${p.title.slice(0, 24)}…` : p.title}
+            </button>
+          ))}
+        </span>
       )}
       {editable ? (
         <input

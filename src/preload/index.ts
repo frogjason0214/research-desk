@@ -48,6 +48,29 @@ const api: DeskApi = {
     search: call('papers.search'),
     copy: call('papers.copy')
   },
+  mindmaps: {
+    list: call('mindmaps.list'),
+    create: call('mindmaps.create'),
+    rename: call('mindmaps.rename'),
+    remove: call('mindmaps.remove'),
+    saveImage: call('mindmaps.saveImage')
+  },
+  nodes: {
+    list: call('nodes.list'),
+    add: call('nodes.add'),
+    update: call('nodes.update'),
+    move: call('nodes.move'),
+    remove: call('nodes.remove'),
+    createTask: call('nodes.createTask')
+  },
+  links: {
+    add: call('links.add'),
+    remove: call('links.remove'),
+    forNode: call('links.forNode'),
+    forMap: call('links.forMap'),
+    forPaper: call('links.forPaper'),
+    forTasks: call('links.forTasks')
+  },
   ai: {
     status: call('ai.status'),
     setKey: call('ai.setKey'),

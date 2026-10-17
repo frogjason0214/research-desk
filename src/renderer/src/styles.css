@@ -1368,3 +1368,253 @@ a.btn {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ---------- 心智圖 ---------- */
+
+.mm-page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: calc(100vh - 150px);
+  min-height: 420px;
+}
+.mm-maps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mm-maps select {
+  min-width: 160px;
+  font-weight: 600;
+}
+.mm-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.mm-main .banner {
+  margin: 0;
+}
+.mm-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mm-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.mm-canvas {
+  flex: 1;
+  position: relative;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--panel);
+  min-height: 0;
+}
+.mm-canvas:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.mm-canvas .react-flow {
+  --xy-background-color: var(--panel);
+  --xy-edge-stroke: var(--ink-soft);
+  --xy-controls-button-background-color: var(--panel);
+  --xy-controls-button-color: var(--ink);
+  --xy-controls-button-border-color: var(--rule);
+}
+.mm-help {
+  position: absolute;
+  left: 56px;
+  bottom: 6px;
+  font-size: 11px;
+  pointer-events: none;
+  margin: 0;
+}
+.mm-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  min-width: 60px;
+  max-width: 260px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1.5px solid var(--rule);
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+}
+.mm-node.is-root {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-size: 15px;
+  font-weight: 600;
+  padding: 10px 16px;
+}
+.mm-node.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.mm-node.is-root.is-selected {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.mm-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.mm-input {
+  font: inherit;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  min-width: 120px;
+}
+.mm-counts {
+  display: inline-flex;
+  gap: 4px;
+  font-size: 10px;
+}
+.mm-counts span {
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  white-space: nowrap;
+}
+.mm-node.is-root .mm-counts span {
+  background: rgb(255 255 255 / 0.25);
+  color: #fff;
+}
+.mm-toggle {
+  position: absolute;
+  right: -11px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--panel);
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 1;
+}
+.mm-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.mm-handle {
+  opacity: 0;
+  pointer-events: none;
+}
+.react-flow__edge.mm-edge path {
+  stroke: color-mix(in srgb, var(--ink-soft) 70%, transparent);
+  stroke-width: 1.5;
+}
+.mm-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: 300px;
+  z-index: 5;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+}
+.mm-panel h4 {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0 0 6px;
+}
+.mm-panel section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mm-panel-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.mm-panel .inline-add select {
+  flex: 1;
+  min-width: 0;
+}
+.mm-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mm-links li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.mm-links li > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.mm-links .link-btn {
+  text-align: left;
+  padding: 4px 0;
+}
+.mm-links li.is-done span {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+}
+.mm-newtask {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+}
+.mm-newtask input:first-child {
+  grid-column: 1 / -1;
+}
+.task-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.badge.is-link {
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+.badge.is-link:hover {
+  text-decoration: underline;
+}
+.mm-panel-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+.mm-panel .mm-panel-title {
+  margin-right: 28px;
+}

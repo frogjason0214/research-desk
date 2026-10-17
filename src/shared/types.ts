@@ -145,6 +145,61 @@ export interface AiStatus {
 /** 心理學研究類型（AI 預填也從這裡選） */
 export const STUDY_TYPES = ['實驗', '準實驗', '問卷調查', '縱貫研究', '質性研究', '混合方法', '後設分析', '系統性回顧', '個案研究', '理論／評論', '其他']
 
+// ---------- 心智圖 ----------
+
+export interface MindMap {
+  id: string
+  project_id: string
+  name: string
+  created_at: string
+}
+
+export interface MindNode {
+  id: string
+  map_id: string
+  /** null = 中心節點 */
+  parent_id: string | null
+  text: string
+  x: number
+  y: number
+  /** 1 = 子分支收合 */
+  collapsed: number
+  color: string
+}
+
+export type NodePatch = Partial<Pick<MindNode, 'text' | 'x' | 'y' | 'collapsed' | 'color'>>
+
+export type LinkType = 'node' | 'task' | 'paper'
+
+/** 指向某個心智圖節點 */
+export interface NodeRef {
+  mapId: string
+  mapName: string
+  nodeId: string
+  text: string
+}
+
+export interface PaperRef {
+  id: string
+  title: string
+  year: string
+}
+
+/** 節點連到的文獻與待辦 */
+export interface NodeLinks {
+  papers: PaperRef[]
+  tasks: Task[]
+}
+
+/** 待辦連到的節點與文獻（待辦頁顯示用） */
+export interface TaskLinks {
+  nodes: NodeRef[]
+  papers: PaperRef[]
+}
+
+/** 跨頁面跳轉：從文獻跳到節點、從節點跳到文獻 */
+export type Focus = { page: 'literature'; paperId: string } | { page: 'mindmap'; mapId: string; nodeId: string }
+
 // ---------- Google 行事曆 ----------
 
 export interface GoogleStatus {
@@ -272,6 +327,30 @@ export interface DeskApi {
     search(projectId: string, query: string): Promise<PaperHit[]>
     /** 複製到剪貼簿（純文字與 HTML，貼到 Word 會保留斜體） */
     copy(text: string, html: string): Promise<void>
+  }
+  mindmaps: {
+    list(projectId: string): Promise<MindMap[]>
+    create(projectId: string, name: string): Promise<MindMap>
+    rename(id: string, name: string): Promise<void>
+    remove(id: string): Promise<void>
+    /** 另存 PNG 圖片（會跳出存檔視窗）；取消時回傳 false */
+    saveImage(name: string, dataUrl: string): Promise<boolean>
+  }
+  nodes: {
+    list(mapId: string): Promise<MindNode[]>
+    add(mapId: string, parentId: string, text: string, pos?: { x: number; y: number }): Promise<string>
+    update(id: string, patch: NodePatch): Promise<void>
+    move(moves: { id: string; x: number; y: number }[]): Promise<void>
+    remove(id: string): Promise<void>
+    createTask(nodeId: string, title: string, dueDate: string | null): Promise<void>
+  }
+  links: {
+    add(t1: LinkType, id1: string, t2: LinkType, id2: string): Promise<void>
+    remove(t1: LinkType, id1: string, t2: LinkType, id2: string): Promise<void>
+    forNode(nodeId: string): Promise<NodeLinks>
+    forMap(mapId: string): Promise<Record<string, { papers: number; tasks: number }>>
+    forPaper(paperId: string): Promise<NodeRef[]>
+    forTasks(projectId: string): Promise<Record<string, TaskLinks>>
   }
   ai: {
     status(): Promise<AiStatus>

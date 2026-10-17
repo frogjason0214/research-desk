@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron'
+import fs from 'node:fs'
 import path from 'node:path'
 import type { AiStatus, AppStatus, SidebarLayout } from '../shared/types'
 import { Gemini, GEMINI_MODEL } from './ai/gemini'
@@ -7,6 +8,7 @@ import { detectCloudFolders } from './cloud'
 import { loadConfig, saveConfig, type LocalConfig } from './config'
 import { createGoogle } from './google'
 import { createDataHandlers } from './handlers'
+import { createMindmapHandlers } from './mindmaps'
 import { Library, LIBRARY_FOLDER, type AttachChoice, type AttachResult } from './library'
 import { Store } from './store'
 import { createUpdater } from './updater'
@@ -177,16 +179,33 @@ function status(): AppStatus {
 
 function registerIpc(): void {
   const data = createDataHandlers(store) as Record<string, (...args: never[]) => unknown>
+  const mindmaps = createMindmapHandlers(store)
 
   const handlers: Record<string, (...args: never[]) => unknown> = {
     ...data,
     ...(google.handlers as Record<string, (...args: never[]) => unknown>),
     ...(papers.handlers as Record<string, (...args: never[]) => unknown>),
-    // 刪除專案時連同文獻的檔案一起刪
+    ...(mindmaps as Record<string, (...args: never[]) => unknown>),
+    // 刪除專案時連同文獻的檔案、心智圖一起刪
     'projects.remove': (id: string) => {
       for (const p of store.all<{ id: string }>('SELECT id FROM papers WHERE project_id = ?', [id]))
         papers.handlers['papers.remove'](p.id)
+      for (const m of store.all<{ id: string }>('SELECT id FROM mindmaps WHERE project_id = ?', [id]))
+        mindmaps['mindmaps.remove'](m.id)
       return (data['projects.remove'] as (id: string) => void)(id)
+    },
+    'mindmaps.saveImage': async (name: string, dataUrl: string): Promise<boolean> => {
+      // 自動化測試用：直接存到指定位置，不跳存檔視窗
+      const testPath = process.env.RESEARCH_DESK_EXPORT_PATH
+      const result = testPath ? { canceled: false, filePath: testPath } : await dialog.showSaveDialog({
+        title: '匯出心智圖',
+        defaultPath: path.join(app.getPath('documents'), `${name.replace(/[\\/:*?"<>|]/g, '_')}.png`),
+        filters: [{ name: 'PNG 圖片', extensions: ['png'] }]
+      })
+      if (result.canceled || !result.filePath) return false
+      await fs.promises.writeFile(result.filePath, Buffer.from(dataUrl.replace(/^data:image\/png;base64,/, ''), 'base64'))
+      if (!testPath) shell.showItemInFolder(result.filePath)
+      return true
     },
     'ai.status': (): AiStatus => ({ hasKey: gemini.hasKey, model: GEMINI_MODEL, autoFill: config.aiAutoFill ?? true }),
     'ai.setKey': (key: string) => gemini.setKey(key),

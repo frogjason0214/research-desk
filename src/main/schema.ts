@@ -23,7 +23,14 @@ export const TABLES: Record<string, { fields: string[]; required: string[] }> = 
       'notes', 'no_ai', 'notes_no_ai', 'text_status', 'added_at'
     ],
     required: ['project_id', 'kind']
-  }
+  },
+  mindmaps: { fields: ['project_id', 'name', 'created_at'], required: ['project_id', 'name'] },
+  mm_nodes: {
+    fields: ['map_id', 'parent_id', 'text', 'x', 'y', 'collapsed', 'color', 'created_at'],
+    required: ['map_id']
+  },
+  // 節點、文獻、待辦之間的連結；ID 由兩端組成，兩台電腦同時加同一條連結也只有一筆
+  links: { fields: ['a_type', 'a_id', 'b_type', 'b_id'], required: ['a_type', 'a_id', 'b_type', 'b_id'] }
 }
 
 /** 刪除也是一個欄位修改，才能和其他電腦的修改比較先後 */
@@ -49,6 +56,15 @@ CREATE TABLE papers (
   text_status TEXT DEFAULT 'pending', added_at TEXT
 );
 CREATE INDEX idx_papers_project ON papers(project_id);
+CREATE TABLE mindmaps (id TEXT PRIMARY KEY, project_id TEXT, name TEXT, created_at TEXT);
+CREATE TABLE mm_nodes (
+  id TEXT PRIMARY KEY, map_id TEXT, parent_id TEXT, text TEXT DEFAULT '',
+  x REAL DEFAULT 0, y REAL DEFAULT 0, collapsed INTEGER DEFAULT 0, color TEXT DEFAULT '', created_at TEXT
+);
+CREATE INDEX idx_nodes_map ON mm_nodes(map_id);
+CREATE TABLE links (id TEXT PRIMARY KEY, a_type TEXT, a_id TEXT, b_type TEXT, b_id TEXT);
+CREATE INDEX idx_links_a ON links(a_id);
+CREATE INDEX idx_links_b ON links(b_id);
 CREATE INDEX idx_milestones_project ON milestones(project_id);
 CREATE INDEX idx_tasks_project ON tasks(project_id);
 `

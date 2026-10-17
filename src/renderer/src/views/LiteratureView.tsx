@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apaCitation, inTextCitation } from '../../../shared/apa'
-import { STUDY_TYPES, type Author, type Paper, type PaperHit, type PaperPatch } from '../../../shared/types'
+import {
+  STUDY_TYPES,
+  type Author,
+  type Focus,
+  type NodeRef,
+  type Paper,
+  type PaperHit,
+  type PaperPatch,
+  type Task,
+  type TaskLinks
+} from '../../../shared/types'
 import { extractPdfText } from '../pdf'
 import { desk } from '../useDesk'
 
@@ -19,9 +29,24 @@ const authorLine = (p: Paper): string => {
   return names.length > 3 ? `${names.slice(0, 3).join(p.lang === 'zh' ? '、' : ', ')} 等` : names.join(p.lang === 'zh' ? '、' : ', ')
 }
 
-export function LiteratureView({ projectId, run }: { projectId: string; run: Run }) {
+export function LiteratureView({
+  projectId,
+  tasks,
+  run,
+  focusPaperId,
+  onNavigate
+}: {
+  projectId: string
+  tasks: Task[]
+  run: Run
+  focusPaperId: string | null
+  onNavigate: (f: Focus) => void
+}) {
   const [papers, setPapers] = useState<Paper[]>([])
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(focusPaperId)
+  useEffect(() => {
+    if (focusPaperId) setSelected(focusPaperId)
+  }, [focusPaperId])
   const [filter, setFilter] = useState('')
   const [hits, setHits] = useState<PaperHit[] | null>(null)
   const [jobs, setJobs] = useState<Job[]>([])
@@ -194,7 +219,14 @@ export function LiteratureView({ projectId, run }: { projectId: string; run: Run
 
       <section className="lit-detail">
         {current ? (
-          <PaperDetail key={current.id} paper={current} run={run} onDeleted={() => setSelected(null)} />
+          <PaperDetail
+            key={current.id}
+            paper={current}
+            tasks={tasks}
+            run={run}
+            onDeleted={() => setSelected(null)}
+            onNavigate={onNavigate}
+          />
         ) : (
           <div className="empty-card">
             <h3>文獻庫</h3>
@@ -277,7 +309,82 @@ function Field({
   )
 }
 
-function PaperDetail({ paper: p, run, onDeleted }: { paper: Paper; run: Run; onDeleted: () => void }) {
+/** 文獻出現在哪些心智圖節點、連到哪些待辦（雙向連結） */
+function PaperLinks({ paper, tasks, run, onNavigate }: { paper: Paper; tasks: Task[]; run: Run; onNavigate: (f: Focus) => void }) {
+  const [nodes, setNodes] = useState<NodeRef[]>([])
+  const [taskLinks, setTaskLinks] = useState<Record<string, TaskLinks>>({})
+  const [pick, setPick] = useState('')
+  useEffect(() => {
+    const load = (): void => {
+      desk.links.forPaper(paper.id).then(setNodes)
+      desk.links.forTasks(paper.project_id).then(setTaskLinks)
+    }
+    load()
+    return desk.onChanged(load)
+  }, [paper.id, paper.project_id])
+
+  const linkedTasks = tasks.filter((t) => taskLinks[t.id]?.papers.some((x) => x.id === paper.id))
+  return (
+    <section className="paper-section">
+      <h3>出現在哪些節點</h3>
+      {nodes.length === 0 ? (
+        <p className="muted">還沒有心智圖節點連結這篇文獻。在「心智圖」選一個節點，就能從右側連結文獻。</p>
+      ) : (
+        <ul className="mm-links">
+          {nodes.map((n) => (
+            <li key={n.nodeId}>
+              <button className="link-btn" onClick={() => onNavigate({ page: 'mindmap', mapId: n.mapId, nodeId: n.nodeId })}>
+                {n.mapName} › {n.text}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <h3>相關待辦</h3>
+      {linkedTasks.length > 0 && (
+        <ul className="mm-links">
+          {linkedTasks.map((t) => (
+            <li key={t.id} className={t.done ? 'is-done' : ''}>
+              <span>{t.title}</span>
+              <button className="icon-btn" aria-label="取消連結" onClick={() => run(() => desk.links.remove('task', t.id, 'paper', paper.id))}>
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="inline-add">
+        <select value={pick} onChange={(e) => setPick(e.target.value)} aria-label="選擇待辦">
+          <option value="">連結到待辦…</option>
+          {tasks
+            .filter((t) => !t.done && !linkedTasks.includes(t))
+            .map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title}
+              </option>
+            ))}
+        </select>
+        <button className="btn" disabled={!pick} onClick={() => run(async () => { await desk.links.add('task', pick, 'paper', paper.id); setPick('') })}>
+          連結
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function PaperDetail({
+  paper: p,
+  tasks,
+  run,
+  onDeleted,
+  onNavigate
+}: {
+  paper: Paper
+  tasks: Task[]
+  run: Run
+  onDeleted: () => void
+  onNavigate: (f: Focus) => void
+}) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [doi, setDoi] = useState(p.doi)
@@ -424,6 +531,8 @@ function PaperDetail({ paper: p, run, onDeleted }: { paper: Paper; run: Run; onD
           <Field label="主要發現" value={p.findings} onSave={(findings) => update({ findings })} wide multiline />
         </div>
       </section>
+
+      <PaperLinks paper={p} tasks={tasks} run={run} onNavigate={onNavigate} />
 
       <section className="paper-section">
         <h3>筆記</h3>

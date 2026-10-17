@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import type { Milestone, Task, UpdateStatus } from '../../../shared/types'
+import { useEffect, useState } from 'react'
+import type { Focus, Milestone, Task, TaskLinks, UpdateStatus } from '../../../shared/types'
 import { AddTask } from '../components/AddTask'
 import { ErrorBanner, GoogleBanner, SyncBanner, UpdateBanner } from '../components/Banners'
 import { Countdown } from '../components/Countdown'
@@ -12,19 +12,26 @@ import { TaskRow } from '../components/TaskRow'
 import { desk, useDesk, useRun, type DeskState } from '../useDesk'
 import { CalendarView } from './CalendarView'
 import { LiteratureView } from './LiteratureView'
+import { MindMapView } from './MindMapView'
 
 type Tab = 'milestones' | 'tasks' | 'settings'
 
-const SOON = ['心智圖', 'AI 教授']
+const SOON = ['AI 教授']
 
 /** 主畫面：目前專案的分頁，或跨專案的功能頁 */
-type Page = 'project' | 'literature' | 'calendar'
+type Page = 'project' | 'literature' | 'mindmap' | 'calendar'
 
 export function FullWindow() {
   const state = useDesk()
   const [error, run, clearError] = useRun()
   const [tab, setTab] = useState<Tab>('milestones')
   const [page, setPage] = useState<Page>('project')
+  // 從文獻跳到心智圖節點、從節點或待辦跳到文獻
+  const [focus, setFocus] = useState<Focus | null>(null)
+  const navigate = (f: Focus): void => {
+    setFocus(f)
+    setPage(f.page)
+  }
   const [newProject, setNewProject] = useState('')
 
   if (!state) return null
@@ -76,11 +83,18 @@ export function FullWindow() {
           {(
             [
               ['literature', '文獻'],
+              ['mindmap', '心智圖'],
               ['calendar', '行事曆']
             ] as [Page, string][]
           ).map(([key, label]) => (
             <li key={key}>
-              <button className={`nav-item${page === key ? ' is-active' : ''}`} onClick={() => setPage(key)}>
+              <button
+                className={`nav-item${page === key ? ' is-active' : ''}`}
+                onClick={() => {
+                  setPage(key)
+                  setFocus(null)
+                }}
+              >
                 {label}
               </button>
             </li>
@@ -114,7 +128,26 @@ export function FullWindow() {
             <header className="main-head">
               <h2 className="project-name">{current.name}・文獻</h2>
             </header>
-            <LiteratureView projectId={current.id} run={run} />
+            <LiteratureView
+              projectId={current.id}
+              tasks={state.tasks}
+              run={run}
+              focusPaperId={focus?.page === 'literature' ? focus.paperId : null}
+              onNavigate={navigate}
+            />
+          </>
+        ) : page === 'mindmap' && current ? (
+          <>
+            <header className="main-head">
+              <h2 className="project-name">{current.name}・心智圖</h2>
+            </header>
+            <MindMapView
+              projectId={current.id}
+              tasks={state.tasks}
+              run={run}
+              focus={focus?.page === 'mindmap' ? focus : null}
+              onNavigate={navigate}
+            />
           </>
         ) : !current ? (
           <CreateProject
@@ -151,7 +184,7 @@ export function FullWindow() {
             </header>
 
             {tab === 'milestones' && <MilestonesView state={state} run={run} />}
-            {tab === 'tasks' && <TasksView state={state} run={run} />}
+            {tab === 'tasks' && <TasksView state={state} run={run} onNavigate={navigate} />}
             {tab === 'settings' && <SettingsView state={state} run={run} onDeleted={() => setTab('milestones')} />}
           </>
         )}
@@ -271,8 +304,14 @@ function MilestonesView({ state, run }: { state: DeskState; run: Run }) {
   )
 }
 
-function TasksView({ state, run }: { state: DeskState; run: Run }) {
+function TasksView({ state, run, onNavigate }: { state: DeskState; run: Run; onNavigate: (f: Focus) => void }) {
   const [showDone, setShowDone] = useState(false)
+  const [links, setLinks] = useState<Record<string, TaskLinks>>({})
+  useEffect(() => {
+    const load = (): void => void desk.links.forTasks(state.projectId!).then(setLinks)
+    load()
+    return desk.onChanged(load)
+  }, [state.projectId])
   const open = state.tasks.filter((t) => !t.done)
   const done = state.tasks
     .filter((t) => t.done)
@@ -288,6 +327,8 @@ function TasksView({ state, run }: { state: DeskState; run: Run }) {
       onRename={(title) => run(() => desk.tasks.update(t.id, { title }))}
       onDate={(due_date) => run(() => desk.tasks.update(t.id, { due_date }))}
       onRemove={() => run(() => desk.tasks.remove(t.id))}
+      links={links[t.id]}
+      onNavigate={onNavigate}
     />
   )
 
