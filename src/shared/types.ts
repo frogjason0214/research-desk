@@ -47,6 +47,53 @@ export interface CloudCandidate {
 export type SyncEnableResult = 'done' | 'needsChoice'
 export type SyncChoice = 'merge' | 'discard'
 
+// ---------- Google 行事曆 ----------
+
+export interface GoogleStatus {
+  /** 這個版本有沒有設定 Google 用戶端（.env） */
+  configured: boolean
+  state: 'signedOut' | 'signedIn' | 'expired'
+  email: string | null
+}
+
+export interface CalendarInfo {
+  id: string
+  name: string
+  color: string
+  primary: boolean
+  /** 自動建立的「研究任務」行事曆 */
+  research: boolean
+  writable: boolean
+}
+
+export interface CalendarEvent {
+  id: string
+  calendarId: string
+  title: string
+  description: string
+  allDay: boolean
+  /** 全天：YYYY-MM-DD；有時間：ISO 8601 */
+  start: string
+  /** 全天：最後一天（含）；有時間：ISO 8601 */
+  end: string
+  color: string
+  /** 由待辦產生的事件，請在待辦修改 */
+  taskId: string | null
+  writable: boolean
+  link: string | null
+}
+
+export interface EventInput {
+  calendarId: string
+  title: string
+  description: string
+  allDay: boolean
+  /** 全天：YYYY-MM-DD；有時間：本地時間 YYYY-MM-DDTHH:mm */
+  start: string
+  /** 全天：最後一天（含）；有時間：本地時間 YYYY-MM-DDTHH:mm */
+  end: string
+}
+
 /** 邊欄面板在邊欄視窗裡的位置（像素，從視窗頂端算起） */
 export interface SidebarLayout {
   expanded: boolean
@@ -57,6 +104,10 @@ export interface SidebarLayout {
 
 export interface AppStatus {
   sync: SyncStatus
+  google: GoogleStatus & {
+    /** 待辦同步到行事曆時最後一次的錯誤 */
+    taskSyncError: string | null
+  }
   /** 目前資料所在的資料夾（雲端或本機） */
   dataDir: string
   currentProjectId: string | null
@@ -99,6 +150,18 @@ export interface DeskApi {
     enable(folder: string, choice?: SyncChoice): Promise<SyncEnableResult>
     disable(): Promise<void>
     now(): Promise<AppStatus>
+  }
+  google: {
+    signIn(): Promise<void>
+    signOut(): Promise<void>
+  }
+  calendar: {
+    calendars(): Promise<CalendarInfo[]>
+    /** [from, to) 之間的行程，日期為 YYYY-MM-DD */
+    events(from: string, to: string): Promise<CalendarEvent[]>
+    create(input: EventInput): Promise<void>
+    update(calendarId: string, id: string, input: EventInput): Promise<void>
+    remove(calendarId: string, id: string): Promise<void>
   }
   settings: {
     openDataDir(): Promise<void>

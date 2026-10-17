@@ -35,6 +35,17 @@ const api: DeskApi = {
     disable: call('sync.disable'),
     now: call('sync.now')
   },
+  google: {
+    signIn: call('google.signIn'),
+    signOut: call('google.signOut')
+  },
+  calendar: {
+    calendars: call('calendar.calendars'),
+    events: call('calendar.events'),
+    create: call('calendar.create'),
+    update: call('calendar.update'),
+    remove: call('calendar.remove')
+  },
   settings: {
     openDataDir: call('settings.openDataDir'),
     setLaunchAtLogin: call('settings.setLaunchAtLogin')

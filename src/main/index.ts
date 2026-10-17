@@ -3,6 +3,7 @@ import path from 'node:path'
 import type { AppStatus, SidebarLayout } from '../shared/types'
 import { detectCloudFolders } from './cloud'
 import { loadConfig, saveConfig, type LocalConfig } from './config'
+import { createGoogle } from './google'
 import { createDataHandlers } from './handlers'
 import { Library, LIBRARY_FOLDER, type AttachChoice, type AttachResult } from './library'
 import { Store } from './store'
@@ -18,6 +19,7 @@ let full: BrowserWindow | null = null
 let config: LocalConfig
 let store: Store
 let library: Library
+let google: ReturnType<typeof createGoogle>
 
 // ---------- 視窗 ----------
 
@@ -124,6 +126,11 @@ function openFull(): void {
   })
   full.once('ready-to-show', () => full?.show())
   full.on('closed', () => (full = null))
+  // 畫面裡的外部連結（例如「在 Google 日曆開啟」）用預設瀏覽器開
+  full.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://')) shell.openExternal(url)
+    return { action: 'deny' }
+  })
   loadView(full, 'full')
 }
 
@@ -142,6 +149,7 @@ function status(): AppStatus {
       otherDevices: library.otherDevices(),
       lastSyncAt: library.lastSyncAt
     },
+    google: google.status(),
     dataDir: library.dataDir,
     currentProjectId: config.currentProjectId ?? null,
     launchAtLogin: app.getLoginItemSettings().openAtLogin,
@@ -157,6 +165,7 @@ function registerIpc(): void {
 
   const handlers: Record<string, (...args: never[]) => unknown> = {
     ...data,
+    ...(google.handlers as Record<string, (...args: never[]) => unknown>),
     status,
     'sync.candidates': () => detectCloudFolders(),
     'sync.pickFolder': async () => {
@@ -223,6 +232,9 @@ function registerIpc(): void {
 
 // ---------- 啟動 ----------
 
+// 自動化測試用：指定另一個資料夾，不碰使用者真正的資料
+if (process.env.RESEARCH_DESK_USER_DATA) app.setPath('userData', process.env.RESEARCH_DESK_USER_DATA)
+
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
@@ -238,6 +250,14 @@ if (!app.requestSingleInstanceLock()) {
     store = new Store(library)
     await store.open()
     store.onChange(broadcastChanged)
+
+    google = createGoogle({
+      store,
+      userData: app.getPath('userData'),
+      config,
+      saveConfig: () => saveConfig(config),
+      onChange: broadcastChanged
+    })
 
     registerIpc()
     createSidebar()

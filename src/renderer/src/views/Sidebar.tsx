@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Task } from '../../../shared/types'
 import { AddTask } from '../components/AddTask'
-import { ErrorBanner, SyncBanner } from '../components/Banners'
+import { ErrorBanner, GoogleBanner, SyncBanner } from '../components/Banners'
 import { Countdown } from '../components/Countdown'
 import { CreateProject } from '../components/CreateProject'
 import { TaskRow } from '../components/TaskRow'
@@ -159,6 +159,7 @@ export function Sidebar() {
             <div className="sidebar-body">
               <div className="sidebar-inner" ref={inner}>
                 <SyncBanner status={state.status} onRetry={() => run(() => desk.sync.now())} />
+                <GoogleBanner status={state.status} onSignIn={() => run(() => desk.google.signIn())} />
                 <ErrorBanner error={error} onClose={clearError} />
 
                 {!state.projectId ? (

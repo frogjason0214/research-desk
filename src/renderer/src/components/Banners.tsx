@@ -13,6 +13,19 @@ export function SyncBanner({ status, onRetry }: { status: AppStatus; onRetry: ()
   )
 }
 
+/** Google 登入過期（測試模式約 7 天一次）時提示重新登入 */
+export function GoogleBanner({ status, onSignIn }: { status: AppStatus; onSignIn: () => void }) {
+  if (status.google.state !== 'expired') return null
+  return (
+    <div className="banner banner-warn" role="status">
+      <p>Google 登入已過期，待辦暫時不會同步到行事曆。</p>
+      <button className="btn" onClick={onSignIn}>
+        重新登入
+      </button>
+    </div>
+  )
+}
+
 export function ErrorBanner({ error, onClose }: { error: string | null; onClose: () => void }) {
   if (!error) return null
   return (

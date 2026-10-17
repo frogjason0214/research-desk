@@ -1,22 +1,28 @@
 import { useState } from 'react'
 import type { Milestone, Task } from '../../../shared/types'
 import { AddTask } from '../components/AddTask'
-import { ErrorBanner, SyncBanner } from '../components/Banners'
+import { ErrorBanner, GoogleBanner, SyncBanner } from '../components/Banners'
 import { Countdown } from '../components/Countdown'
 import { CreateProject } from '../components/CreateProject'
 import { EditableTitle } from '../components/EditableTitle'
+import { GoogleSettings } from '../components/GoogleSettings'
 import { SyncSettings } from '../components/SyncSettings'
 import { TaskRow } from '../components/TaskRow'
 import { desk, useDesk, useRun, type DeskState } from '../useDesk'
+import { CalendarView } from './CalendarView'
 
 type Tab = 'milestones' | 'tasks' | 'settings'
 
-const SOON = ['行事曆', '文獻', '心智圖', 'AI 教授']
+const SOON = ['文獻', '心智圖', 'AI 教授']
+
+/** 主畫面：目前專案的分頁，或跨專案的功能頁 */
+type Page = 'project' | 'calendar'
 
 export function FullWindow() {
   const state = useDesk()
   const [error, run, clearError] = useRun()
   const [tab, setTab] = useState<Tab>('milestones')
+  const [page, setPage] = useState<Page>('project')
   const [newProject, setNewProject] = useState('')
 
   if (!state) return null
@@ -32,8 +38,11 @@ export function FullWindow() {
           {state.projects.map((p) => (
             <li key={p.id}>
               <button
-                className={`nav-item${p.id === state.projectId ? ' is-active' : ''}`}
-                onClick={() => run(() => desk.projects.setCurrent(p.id))}
+                className={`nav-item${p.id === state.projectId && page === 'project' ? ' is-active' : ''}`}
+                onClick={() => {
+                  setPage('project')
+                  run(() => desk.projects.setCurrent(p.id))
+                }}
               >
                 {p.name}
               </button>
@@ -60,6 +69,18 @@ export function FullWindow() {
           />
         </form>
 
+        <h2 className="nav-heading">工具</h2>
+        <ul className="nav-list">
+          <li>
+            <button
+              className={`nav-item${page === 'calendar' ? ' is-active' : ''}`}
+              onClick={() => setPage('calendar')}
+            >
+              行事曆
+            </button>
+          </li>
+        </ul>
+
         <h2 className="nav-heading">即將推出</h2>
         <ul className="nav-list">
           {SOON.map((s) => (
@@ -76,9 +97,12 @@ export function FullWindow() {
 
       <main className="main">
         <SyncBanner status={state.status} onRetry={() => run(() => desk.sync.now())} />
+        <GoogleBanner status={state.status} onSignIn={() => run(() => desk.google.signIn())} />
         <ErrorBanner error={error} onClose={clearError} />
 
-        {!current ? (
+        {page === 'calendar' ? (
+          <CalendarView status={state.status} run={run} />
+        ) : !current ? (
           <CreateProject
             onCreate={(name) =>
               run(async () => {
@@ -285,6 +309,8 @@ function SettingsView({ state, run, onDeleted }: { state: DeskState; run: Run; o
       </section>
 
       <SyncSettings status={state.status} run={run} />
+
+      <GoogleSettings status={state.status} run={run} />
 
       <section>
         <h3>程式</h3>
