@@ -1,3 +1,4 @@
+import { Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ROLE_LABELS,
@@ -9,6 +10,7 @@ import {
 } from '../../../shared/types'
 import { AiMarkdown, SourceList } from '../components/AiMarkdown'
 import { EditableTitle } from '../components/EditableTitle'
+import { IconButton } from '../components/IconButton'
 import { desk } from '../useDesk'
 
 type Run = (fn: () => Promise<unknown>) => Promise<void>
@@ -199,12 +201,14 @@ function Chat({
         />
         <span className="badge">{ROLE_LABELS[conversation.role]}</span>
         <span className="spacer" />
-        <button
-          className="btn btn-danger"
+        {confirmDelete && <span className="muted">再按一次垃圾桶就會刪除這個對話</span>}
+        <IconButton
+          icon={Trash2}
+          label={confirmDelete ? '再按一次刪除這個對話' : '刪除對話'}
+          danger
+          active={confirmDelete}
           onClick={() => (confirmDelete ? run(async () => { await desk.professor.remove(conversation.id); onDeleted() }) : setConfirmDelete(true))}
-        >
-          {confirmDelete ? '確定刪除？' : '刪除對話'}
-        </button>
+        />
       </header>
 
       <div className="chat-log">

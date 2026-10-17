@@ -2,14 +2,23 @@ import type { Milestone } from '../../../shared/types'
 import { daysBetween, shortDate, todayStr } from '../dates'
 
 /** 口試倒數 + 里程碑進度軌道 */
-export function Countdown({ milestones, onSetDate }: { milestones: Milestone[]; onSetDate?: () => void }) {
+export function Countdown({
+  milestones,
+  onSetDate,
+  row
+}: {
+  milestones: Milestone[]
+  onSetDate?: () => void
+  /** 橫向排列（「今天」頁上方） */
+  row?: boolean
+}) {
   const defense = milestones.find((m) => m.is_defense)
   const days = defense?.due_date ? daysBetween(todayStr(), defense.due_date) : null
   const done = milestones.filter((m) => m.done).length
   const next = milestones.find((m) => !m.done)
 
   return (
-    <section className="countdown" aria-label="論文進度">
+    <section className={`countdown${row ? " is-row" : ""}`} aria-label="論文進度">
       <p className="countdown-label">
         {days !== null && days < 0 ? `${defense?.title}已過` : `距離${defense?.title ?? '學位口試'}`}
       </p>

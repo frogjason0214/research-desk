@@ -9,6 +9,7 @@ import {
   ReactFlowProvider,
   applyNodeChanges,
   useReactFlow,
+  useUpdateNodeInternals,
   type Edge,
   type Node,
   type NodeChange,
@@ -16,10 +17,13 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { toPng } from 'html-to-image'
+import { GitFork, ImageDown, Link2, ListPlus, Maximize, Network, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Focus, MindMap, MindNode, NodeLinks, Paper, Task } from '../../../shared/types'
 import { EditableTitle } from '../components/EditableTitle'
+import { IconButton } from '../components/IconButton'
 import { relativeDay } from '../dates'
+import { tidyLayout, type LayoutMode } from '../mindLayout'
 import { desk } from '../useDesk'
 
 type Run = (fn: () => Promise<unknown>) => Promise<void>
@@ -27,6 +31,8 @@ type Run = (fn: () => Promise<unknown>) => Promise<void>
 interface NodeData extends Record<string, unknown> {
   text: string
   isRoot: boolean
+  /** 在中心節點左邊的分支：連接點左右對調 */
+  side: 'left' | 'right'
   childCount: number
   hiddenCount: number
   collapsed: boolean
@@ -44,6 +50,9 @@ type FlowNode = Node<NodeData, 'mind'>
 
 function MindNodeView({ id, data, selected }: NodeProps<FlowNode>) {
   const input = useRef<HTMLInputElement>(null)
+  // 節點換到中心節點另一邊時，連接點位置改了，要請 React Flow 重新量
+  const updateInternals = useUpdateNodeInternals()
+  useEffect(() => updateInternals(id), [id, data.side, data.isRoot, updateInternals])
   // 新節點在量好尺寸前是隱藏的，autoFocus 會失敗；重試到真的拿到焦點為止
   useEffect(() => {
     if (!data.editing) return
@@ -62,10 +71,20 @@ function MindNodeView({ id, data, selected }: NodeProps<FlowNode>) {
 
   return (
     <div
-      className={`mm-node${data.isRoot ? ' is-root' : ''}${selected ? ' is-selected' : ''}`}
+      className={`mm-node${data.isRoot ? ' is-root' : ''}${selected ? ' is-selected' : ''}${data.side === 'left' ? ' is-left' : ''}`}
       onDoubleClick={() => data.onEdit(id)}
     >
-      <Handle type="target" position={Position.Left} className="mm-handle" isConnectable={false} />
+      {data.isRoot ? (
+        <>
+          <Handle id="out-r" type="source" position={Position.Right} className="mm-handle" isConnectable={false} />
+          <Handle id="out-l" type="source" position={Position.Left} className="mm-handle" isConnectable={false} />
+        </>
+      ) : (
+        <>
+          <Handle id="in" type="target" position={data.side === 'left' ? Position.Right : Position.Left} className="mm-handle" isConnectable={false} />
+          <Handle id="out" type="source" position={data.side === 'left' ? Position.Left : Position.Right} className="mm-handle" isConnectable={false} />
+        </>
+      )}
       {data.editing ? (
         <input
           ref={input}
@@ -101,7 +120,6 @@ function MindNodeView({ id, data, selected }: NodeProps<FlowNode>) {
           {data.collapsed ? `+${data.hiddenCount}` : '−'}
         </button>
       )}
-      <Handle type="source" position={Position.Right} className="mm-handle" isConnectable={false} />
     </div>
   )
 }
@@ -179,12 +197,14 @@ export function MindMapView({
         {current && (
           <>
             <EditableTitle value={current.name} label="心智圖名稱" onSave={(name) => run(() => desk.mindmaps.rename(current.id, name))} />
-            <button
-              className="btn btn-danger"
+            <IconButton
+              icon={Trash2}
+              label={confirmDelete ? '再按一次刪除整張心智圖' : '刪除這張心智圖'}
+              danger
+              active={confirmDelete}
               onClick={() => (confirmDelete ? run(() => desk.mindmaps.remove(current.id)) : setConfirmDelete(true))}
-            >
-              {confirmDelete ? '確定刪除整張圖？' : '刪除這張圖'}
-            </button>
+            />
+            {confirmDelete && <span className="muted">再按一次垃圾桶就會刪除整張圖</span>}
           </>
         )}
         <span className="spacer" />
@@ -250,6 +270,7 @@ function MapCanvas({
   const [counts, setCounts] = useState<Record<string, { papers: number; tasks: number }>>({})
   const [rfNodes, setRfNodes] = useState<FlowNode[]>([])
   const [selected, setSelected] = useState<string | null>(null)
+  const [panelOpen, setPanelOpen] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
   const dragStart = useRef<Map<string, { x: number; y: number }> | null>(null)
@@ -292,6 +313,10 @@ function MapCanvas({
     return set
   }, [nodes])
 
+  // 在中心節點左邊的節點：連接點與收合按鈕放另一側
+  const rootNode = nodes.find((n) => !n.parent_id)
+  const sideOf = useCallback((n: MindNode): 'left' | 'right' => (rootNode && n.parent_id && n.x < rootNode.x ? 'left' : 'right'), [rootNode])
+
   // 資料變動時合併進 React Flow 的節點（保留它量好的尺寸）
   useEffect(() => {
     setRfNodes((prev) => {
@@ -311,6 +336,7 @@ function MapCanvas({
             data: {
               text: n.text,
               isRoot: !n.parent_id,
+              side: sideOf(n),
               childCount: kids,
               hiddenCount: n.collapsed ? descendants(nodes, n.id).length : 0,
               collapsed: !!n.collapsed,
@@ -324,14 +350,22 @@ function MapCanvas({
           }
         })
     })
-  }, [nodes, hidden, selected, editing, counts, toggle, rename])
+  }, [nodes, hidden, selected, editing, counts, toggle, rename, sideOf])
 
   const edges: Edge[] = useMemo(
     () =>
       nodes
         .filter((n) => n.parent_id && !hidden.has(n.id))
-        .map((n) => ({ id: `e-${n.id}`, source: n.parent_id!, target: n.id, className: 'mm-edge' })),
-    [nodes, hidden]
+        .map((n) => ({
+          id: `e-${n.id}`,
+          source: n.parent_id!,
+          target: n.id,
+          // 中心節點往左、往右各有一個連接點；其他節點一進一出
+          sourceHandle: n.parent_id === rootNode?.id ? (sideOf(n) === 'left' ? 'out-l' : 'out-r') : 'out',
+          targetHandle: 'in',
+          className: 'mm-edge'
+        })),
+    [nodes, hidden, rootNode, sideOf]
   )
 
   // 第一次載入時縮放到看得到全部
@@ -354,8 +388,8 @@ function MapCanvas({
     }
     closed.forEach((id) => run(() => desk.nodes.update(id, { collapsed: 0 })))
     setSelected(target.id)
-    // 右側有節點側欄，畫面中心往右偏半個側欄寬，節點才會落在可見區域中間
-    flow.setCenter(target.x + 80 + 160 / 1.1, target.y + 20, { zoom: 1.1, duration: 400 })
+
+    flow.setCenter(target.x + 80, target.y + 20, { zoom: 1.1, duration: 400 })
     // 只在跳轉目標改變時執行
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusNodeId, nodes.length > 0])
@@ -367,14 +401,25 @@ function MapCanvas({
 
   /** 新節點在畫面外時，把畫面移過去（不改變縮放） */
   const ensureVisible = (n: { x: number; y: number }): void => {
+    // 畫布的範圍已經不含側欄（側欄打開時畫布變窄）
     const box = wrapper.current?.getBoundingClientRect()
     if (!box) return
     const p = flow.flowToScreenPosition({ x: n.x, y: n.y })
-    const panelWidth = 320
-    if (p.x < box.left + 20 || p.x > box.right - panelWidth - 160 || p.y < box.top + 20 || p.y > box.bottom - 60) {
-      flow.setCenter(n.x + 120, n.y + 20, { zoom: flow.getZoom(), duration: 250 })
+    if (p.x < box.left + 20 || p.x > box.right - 160 || p.y < box.top + 20 || p.y > box.bottom - 60) {
+      flow.setCenter(n.x + 80, n.y + 20, { zoom: flow.getZoom(), duration: 250 })
     }
   }
+
+  // 打開側欄後畫布變窄：等版面調整好，把選取的節點移回看得到的地方
+  useEffect(() => {
+    if (!panelOpen) return
+    const n = nodes.find((x) => x.id === selected)
+    if (!n) return
+    const t = window.setTimeout(() => ensureVisible(n), 60)
+    return () => window.clearTimeout(t)
+    // 只在打開側欄或換選取節點時執行
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelOpen, selected])
 
   const addChild = async (parentId: string): Promise<void> => {
     await run(async () => {
@@ -430,6 +475,18 @@ function MapCanvas({
     }
   }
 
+  /** 一鍵整理：用 React Flow 量好的節點大小排版，中心節點不動 */
+  const tidy = (mode: LayoutMode): void => {
+    const sizes = new Map(flow.getNodes().map((n) => [n.id, { w: n.measured?.width ?? 140, h: n.measured?.height ?? 34 }]))
+    const pos = tidyLayout(nodes, (id) => sizes.get(id) ?? { w: 140, h: 34 }, mode)
+    const moves = [...pos].map(([id, p]) => ({ id, ...p }))
+    if (moves.length === 0) return
+    run(async () => {
+      await desk.nodes.move(moves)
+      window.setTimeout(() => flow.fitView({ padding: 0.3, maxZoom: 1.2, duration: 300 }), 100)
+    })
+  }
+
   const exportImage = (): void => {
     run(async () => {
       const all = flow.getNodes()
@@ -459,22 +516,26 @@ function MapCanvas({
   return (
     <div className="mm-main">
       <div className="mm-toolbar">
-        <button className="btn" disabled={!sel} onClick={() => sel && addChild(sel.id)} title="Tab">
-          ＋ 子節點
-        </button>
-        <button className="btn" disabled={!sel || !sel.parent_id} onClick={() => sel && addChild(sel.parent_id!)} title="Enter">
-          ＋ 同層節點
-        </button>
-        <button className="btn" disabled={!sel || !sel.parent_id} onClick={() => sel && remove(sel.id)} title="Delete">
-          刪除
-        </button>
+        <IconButton icon={Plus} label="新增子節點（Tab）" disabled={!sel} onClick={() => sel && addChild(sel.id)} />
+        <IconButton
+          icon={ListPlus}
+          label="新增同層節點（Enter）"
+          disabled={!sel || !sel.parent_id}
+          onClick={() => sel && addChild(sel.parent_id!)}
+        />
+        <IconButton icon={Trash2} label="刪除節點（Delete）" disabled={!sel || !sel.parent_id} onClick={() => sel && remove(sel.id)} />
+        <IconButton
+          icon={Link2}
+          label={panelOpen ? '關閉連結側欄' : '連結文獻與待辦'}
+          disabled={!sel}
+          active={panelOpen && !!sel}
+          onClick={() => setPanelOpen(!panelOpen)}
+        />
         <span className="spacer" />
-        <button className="btn" onClick={() => flow.fitView({ padding: 0.3, maxZoom: 1.2, duration: 300 })}>
-          看全部
-        </button>
-        <button className="btn" onClick={exportImage}>
-          匯出圖片
-        </button>
+        <IconButton icon={GitFork} label="整理：向右展開" onClick={() => tidy('right')} />
+        <IconButton icon={Network} label="整理：左右平衡" onClick={() => tidy('balanced')} />
+        <IconButton icon={Maximize} label="看全部" onClick={() => flow.fitView({ padding: 0.3, maxZoom: 1.2, duration: 300 })} />
+        <IconButton icon={ImageDown} label="匯出圖片" onClick={exportImage} />
       </div>
       {pendingDelete && (
         <p className="banner banner-warn">
@@ -541,20 +602,20 @@ function MapCanvas({
             <Controls showInteractive={false} />
           </ReactFlow>
           <p className="mm-help muted">Tab 子節點・Enter 同層・F2／雙擊 改名・Delete 刪除・空白鍵 收合</p>
-          {/* 節點側欄浮在畫布右側，不壓縮畫布寬度 */}
-          {sel && (
-            <NodePanel
-              key={sel.id}
-              node={sel}
-              isRoot={sel.id === root?.id}
-              projectId={projectId}
-              tasks={tasks}
-              run={run}
-              onNavigate={onNavigate}
-              onClose={() => setSelected(null)}
-            />
-          )}
         </div>
+        {/* 連結側欄：按工具列的連結圖示才打開；打開時畫布變窄，不會擋住節點 */}
+        {panelOpen && sel && (
+          <NodePanel
+            key={sel.id}
+            node={sel}
+            isRoot={sel.id === root?.id}
+            projectId={projectId}
+            tasks={tasks}
+            run={run}
+            onNavigate={onNavigate}
+            onClose={() => setPanelOpen(false)}
+          />
+        )}
       </div>
     </div>
   )

@@ -225,6 +225,11 @@ function registerIpc(): void {
       daily: config.aiDaily ?? true,
       hasOpenAlexKey: !!config.openAlexKey
     }),
+    'calendar.hidden': () => config.calendarHidden ?? [],
+    'calendar.setHidden': (ids: string[]) => {
+      config.calendarHidden = ids
+      saveConfig(config)
+    },
     'ai.setDaily': (on: boolean) => {
       config.aiDaily = on
       saveConfig(config)

@@ -1526,13 +1526,9 @@ a.btn {
   stroke-width: 1.5;
 }
 .mm-panel {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  bottom: 12px;
+  flex: none;
+  margin-left: 12px;
   width: 300px;
-  z-index: 5;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1851,4 +1847,268 @@ a.btn {
 }
 .advice .link-btn {
   padding: 4px 0;
+}
+
+/* ---------- 圖示按鈕 ---------- */
+
+.ibtn {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  flex: none;
+}
+.ibtn:hover:not(:disabled) {
+  background: var(--panel);
+  border-color: var(--rule);
+  color: var(--ink);
+}
+.ibtn.is-on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.ibtn.is-danger:hover:not(:disabled) {
+  color: var(--danger);
+}
+.ibtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ---------- 導覽列（圖示＋文字） ---------- */
+
+.nav-pages {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.nav-pages .nav-item,
+.nav-back {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.nav-project.is-current {
+  font-weight: 600;
+  color: var(--accent);
+}
+.nav-project.is-current::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 8px;
+  vertical-align: 2px;
+}
+.page-name {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-small {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+/* ---------- 今天 ---------- */
+
+.today-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.today-countdown {
+  border: 1px solid var(--rule);
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 12px 18px;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+.today-countdown:hover {
+  border-color: var(--accent);
+}
+.countdown.is-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  column-gap: 18px;
+}
+.countdown.is-row .countdown-label {
+  grid-column: 1;
+}
+.countdown.is-row .countdown-number {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin: 0;
+}
+.countdown.is-row .countdown-number .num {
+  font-size: 40px;
+}
+.countdown.is-row .countdown-date {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 0;
+}
+.countdown.is-row .track {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  margin: 0;
+}
+.countdown.is-row .track-caption {
+  grid-column: 4;
+  grid-row: 1 / span 2;
+}
+.countdown.is-row .countdown-empty {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin: 0;
+}
+.today-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 18px;
+  align-items: start;
+}
+.today-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+.today-side .advice {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.task-panel {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.task-panel h3 {
+  font-size: 14px;
+}
+.task-row[draggable='true'] {
+  cursor: grab;
+}
+.task-row.is-highlighted {
+  background: var(--accent-soft);
+  border-radius: 6px;
+}
+@media (max-width: 1100px) {
+  .today-grid {
+    grid-template-columns: 1fr;
+  }
+  .today-side {
+    position: static;
+    max-height: none;
+  }
+}
+
+/* ---------- 行事曆顏色：待辦依狀態、Google 行程一種顏色 ---------- */
+
+:root {
+  --cal-google: #5b8def;
+}
+.swatch.is-overdue,
+.chip-task.is-overdue {
+  --c: var(--danger);
+}
+.swatch.is-today,
+.chip-task.is-today {
+  --c: var(--warn);
+}
+.swatch.is-upcoming,
+.chip-task.is-upcoming {
+  --c: var(--accent);
+}
+.swatch.is-done,
+.chip-task.is-done {
+  --c: var(--ink-soft);
+}
+.swatch.is-google,
+.chip-google {
+  --c: var(--cal-google);
+}
+.cal-legend .swatch {
+  display: inline-block;
+  background: var(--c);
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+.chip-task {
+  background: var(--c);
+  color: #fff;
+  border-left: none;
+  font-weight: 500;
+}
+.chip-task.is-done {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.chip-task.is-selected {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+.chip-google {
+  background: color-mix(in srgb, var(--c) 16%, var(--panel));
+  border-left: 3px solid var(--c);
+  color: var(--ink);
+}
+.chip-google.is-allday {
+  background: color-mix(in srgb, var(--c) 28%, var(--panel));
+}
+.week-event.chip-google {
+  border-left: 3px solid var(--c);
+}
+.month-cell.is-drop,
+.week-allday-cell.is-drop {
+  background: var(--accent-soft);
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+.cal-picker {
+  list-style: none;
+  margin: 0;
+  padding: 10px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 13px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+.cal-legend li {
+  display: flex;
+  align-items: center;
+}
+.mm-node.is-left .mm-toggle {
+  right: auto;
+  left: -11px;
+}
+.mm-panel {
+  position: relative;
 }

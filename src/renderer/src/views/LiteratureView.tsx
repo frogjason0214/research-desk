@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Archive, ExternalLink, FileText, FileUp, Globe, Link2, Newspaper, Trash2 } from 'lucide-react'
 import { apaCitation, inTextCitation } from '../../../shared/apa'
 import {
   STUDY_TYPES,
@@ -11,6 +12,7 @@ import {
   type Task,
   type TaskLinks
 } from '../../../shared/types'
+import { IconButton } from '../components/IconButton'
 import { extractPdfText } from '../pdf'
 import { desk } from '../useDesk'
 
@@ -127,7 +129,8 @@ export function LiteratureView({
     >
       <aside className="lit-list">
         <div className="lit-import">
-          <button className="btn btn-primary" onClick={() => fileInput.current?.click()}>
+          <button className="btn btn-primary btn-icon" onClick={() => fileInput.current?.click()}>
+            <FileUp size={18} strokeWidth={1.8} aria-hidden />
             匯入 PDF
           </button>
           <input
@@ -149,9 +152,7 @@ export function LiteratureView({
             }}
           >
             <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="貼上網址加入網頁" aria-label="網頁網址" />
-            <button className="btn" type="submit" disabled={!url.trim()}>
-              加入
-            </button>
+            <IconButton icon={Link2} label="加入這個網頁" type="submit" disabled={!url.trim()} />
           </form>
           <label className="check muted">
             <input type="checkbox" checked={noAi} onChange={(e) => setNoAi(e.target.checked)} />
@@ -408,27 +409,27 @@ function PaperDetail({
       <header className="paper-head">
         <h2>{p.title || '（沒有標題）'}</h2>
         <div className="btn-row">
-          <button className="btn" onClick={() => run(() => desk.papers.open(p.id, 'file'))}>
-            {p.kind === 'pdf' ? '開啟 PDF' : p.kind === 'ref' ? '開啟 DOI 連結' : '開啟正文快照'}
-          </button>
-          {p.kind === 'web' && (
-            <button className="btn" onClick={() => run(() => desk.papers.open(p.id, 'page'))}>
-              開啟整頁快照
-            </button>
-          )}
+          <IconButton
+            icon={p.kind === 'pdf' ? FileText : p.kind === 'ref' ? ExternalLink : Newspaper}
+            label={p.kind === 'pdf' ? '開啟 PDF' : p.kind === 'ref' ? '開啟 DOI 連結' : '開啟正文快照'}
+            onClick={() => run(() => desk.papers.open(p.id, 'file'))}
+          />
+          {p.kind === 'web' && <IconButton icon={Archive} label="開啟整頁快照" onClick={() => run(() => desk.papers.open(p.id, 'page'))} />}
           {p.kind === 'web' && p.url && (
-            <a className="btn" href={p.url} target="_blank" rel="noreferrer">
-              原網頁
+            <a className="ibtn" href={p.url} target="_blank" rel="noreferrer" title="開啟原網頁" aria-label="開啟原網頁">
+              <Globe size={18} strokeWidth={1.8} aria-hidden />
             </a>
           )}
           <span className="spacer" />
-          <button
-            className="btn btn-danger"
+          <IconButton
+            icon={Trash2}
+            label={confirmDelete ? '再按一次刪除這篇文獻' : '刪除這篇文獻'}
+            danger
+            active={confirmDelete}
             onClick={() => (confirmDelete ? run(async () => { await desk.papers.remove(p.id); onDeleted() }) : setConfirmDelete(true))}
-          >
-            {confirmDelete ? '確定刪除？' : '刪除'}
-          </button>
+          />
         </div>
+        {confirmDelete && <p className="muted">再按一次垃圾桶圖示就會刪除這篇文獻與它的檔案。</p>}
         {p.busy ? <p className="banner banner-info">正在查詢書目與整理欄位…</p> : null}
         {p.error && !p.busy ? <p className="banner banner-warn">{p.error}</p> : null}
         {p.kind === 'ref' && <p className="muted">這篇是從推薦加入的，只有書目與摘要。下載 PDF 後用「匯入 PDF」可以取得全文。</p>}

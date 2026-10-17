@@ -463,6 +463,9 @@ export interface DeskApi {
     create(input: EventInput): Promise<void>
     update(calendarId: string, id: string, input: EventInput): Promise<void>
     remove(calendarId: string, id: string): Promise<void>
+    /** 隱藏的 Google 行事曆（存在這台電腦的設定檔） */
+    hidden(): Promise<string[]>
+    setHidden(ids: string[]): Promise<void>
   }
   update: {
     check(): Promise<void>

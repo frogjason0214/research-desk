@@ -1,34 +1,33 @@
+import { CalendarPlus, ChevronLeft, ChevronRight, Eye, Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { AppStatus, CalendarEvent, CalendarInfo } from '../../../shared/types'
+import type { AppStatus, CalendarEvent, CalendarInfo, Task } from '../../../shared/types'
 import { EventDialog, toLocalInput, type DialogTarget } from '../components/EventDialog'
+import { IconButton } from '../components/IconButton'
 import { addDays, daysBetween, todayStr } from '../dates'
+import { TASK_DRAG } from '../dnd'
 import { desk } from '../useDesk'
+
+// 行事曆：待辦直接畫在上面（依狀態上色），Google 行程統一一種顏色。
+// 「研究任務」行事曆是待辦同步過去的副本，這裡不再顯示，避免重複。
+// 沒登入 Google 也能用，只顯示待辦。
 
 type Run = (fn: () => Promise<unknown>) => Promise<void>
 type Mode = 'month' | 'week'
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
 const HOUR_PX = 44
-const HIDDEN_KEY = 'calendar.hidden'
 
 const weekday = (date: string): number => new Date(`${date}T00:00:00`).getDay()
 const localDate = (iso: string): string => toLocalInput(iso).slice(0, 10)
 const timeLabel = (iso: string): string => toLocalInput(iso).slice(11)
 
-function readHidden(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]')
-  } catch {
-    return []
-  }
-}
-
-function writeHidden(ids: string[]): void {
-  try {
-    localStorage.setItem(HIDDEN_KEY, JSON.stringify(ids))
-  } catch {
-    /* 無法儲存就算了 */
-  }
+/** 待辦狀態：決定顏色 */
+export function taskState(t: Task, today = todayStr()): 'done' | 'overdue' | 'today' | 'upcoming' {
+  if (t.done) return 'done'
+  if (!t.due_date) return 'upcoming'
+  if (t.due_date < today) return 'overdue'
+  if (t.due_date === today) return 'today'
+  return 'upcoming'
 }
 
 /** 畫面要顯示的日期範圍 [start, end) */
@@ -42,85 +41,70 @@ function rangeOf(mode: Mode, anchor: string): { start: string; end: string } {
   return { start, end: addDays(start, 42) }
 }
 
-/** 某一天有哪些行程（跨日的行程每一天都算） */
-function onDay(events: CalendarEvent[], date: string): CalendarEvent[] {
+/** 某一天有哪些 Google 行程（跨日的行程每一天都算） */
+function eventsOn(events: CalendarEvent[], date: string): CalendarEvent[] {
   return events.filter((e) =>
-    e.allDay ? e.start <= date && date <= e.end : localDate(e.start) <= date && date <= localDate(new Date(new Date(e.end).getTime() - 1).toISOString())
+    e.allDay
+      ? e.start <= date && date <= e.end
+      : localDate(e.start) <= date && date <= localDate(new Date(new Date(e.end).getTime() - 1).toISOString())
   )
 }
 
-export function CalendarView({ status, run }: { status: AppStatus; run: Run }) {
+export function CalendarPanel({
+  status,
+  tasks,
+  run,
+  selectedTask,
+  onSelectTask
+}: {
+  status: AppStatus
+  tasks: Task[]
+  run: Run
+  selectedTask: string | null
+  onSelectTask: (id: string) => void
+}) {
   const g = status.google
-  if (!g.configured) {
-    return (
-      <div className="empty-card">
-        <h3>行事曆尚未啟用</h3>
-        <p className="muted">這個版本還沒有設定 Google 用戶端。開發者請依 README 的「Google 行事曆設定」建立 .env 後重新建置。</p>
-      </div>
-    )
-  }
-  if (g.state !== 'signedIn') {
-    return (
-      <div className="empty-card">
-        <h3>{g.state === 'expired' ? 'Google 登入已過期' : '連接 Google 行事曆'}</h3>
-        <p className="muted">
-          {g.state === 'expired'
-            ? '測試階段的登入大約每 7 天需要重新登入一次。'
-            : '登入後可以在這裡查看與編輯行程；有截止日的待辦也會自動出現在「研究任務」行事曆。'}
-        </p>
-        <button className="btn btn-primary" onClick={() => run(() => desk.google.signIn())}>
-          {g.state === 'expired' ? '重新登入 Google' : '登入 Google'}
-        </button>
-        <p className="muted">會開啟瀏覽器完成登入，完成後回到這裡即可。</p>
-      </div>
-    )
-  }
-  return <SignedInCalendar run={run} />
-}
-
-function SignedInCalendar({ run }: { run: Run }) {
+  const googleOn = g.configured && g.state === 'signedIn'
   const [mode, setMode] = useState<Mode>('month')
   const [anchor, setAnchor] = useState(todayStr())
   const [calendars, setCalendars] = useState<CalendarInfo[]>([])
   const [events, setEvents] = useState<CalendarEvent[]>([])
-  const [hidden, setHidden] = useState<string[]>(readHidden)
+  const [hidden, setHidden] = useState<string[]>([])
+  const [showPicker, setShowPicker] = useState(false)
   const [loading, setLoading] = useState(false)
   const [dialog, setDialog] = useState<DialogTarget | null>(null)
   const range = useMemo(() => rangeOf(mode, anchor), [mode, anchor])
 
-  const load = useCallback(
-    () =>
-      run(async () => {
-        setLoading(true)
-        try {
-          const [cals, evs] = await Promise.all([desk.calendar.calendars(), desk.calendar.events(range.start, range.end)])
-          setCalendars(cals)
-          setEvents(evs)
-        } finally {
-          setLoading(false)
-        }
-      }),
-    [run, range]
-  )
+  useEffect(() => {
+    desk.calendar.hidden().then(setHidden)
+  }, [])
+
+  const load = useCallback(() => {
+    if (!googleOn) {
+      setEvents([])
+      return Promise.resolve()
+    }
+    return run(async () => {
+      setLoading(true)
+      try {
+        const [cals, evs] = await Promise.all([desk.calendar.calendars(), desk.calendar.events(range.start, range.end)])
+        setCalendars(cals)
+        setEvents(evs)
+      } finally {
+        setLoading(false)
+      }
+    })
+  }, [run, range, googleOn])
 
   useEffect(() => {
     load()
   }, [load])
 
-  // 待辦改了之後，約幾秒會同步到「研究任務」行事曆，再重新讀一次
-  useEffect(() => {
-    let timer: number | undefined
-    const off = desk.onChanged(() => {
-      window.clearTimeout(timer)
-      timer = window.setTimeout(load, 6000)
-    })
-    return () => {
-      off()
-      window.clearTimeout(timer)
-    }
-  }, [load])
-
-  const visible = events.filter((e) => !hidden.includes(e.calendarId))
+  // 待辦本身直接從資料畫，不必等 Google；只有 Google 行程需要重新讀
+  const googleEvents = events.filter((e) => {
+    const cal = calendars.find((c) => c.id === e.calendarId)
+    return !e.taskId && !cal?.research && !hidden.includes(e.calendarId)
+  })
   const today = todayStr()
 
   const step = (dir: -1 | 1): void => {
@@ -134,28 +118,46 @@ function SignedInCalendar({ run }: { run: Run }) {
 
   const [y, m] = anchor.split('-').map(Number)
   const title =
-    mode === 'month'
-      ? `${y} 年 ${m} 月`
-      : `${range.start.replace(/-/g, '/')} – ${addDays(range.end, -1).slice(5).replace('-', '/')}`
+    mode === 'month' ? `${y} 年 ${m} 月` : `${range.start.replace(/-/g, '/')} – ${addDays(range.end, -1).slice(5).replace('-', '/')}`
 
   const toggleCal = (id: string): void => {
     const next = hidden.includes(id) ? hidden.filter((h) => h !== id) : [...hidden, id]
     setHidden(next)
-    writeHidden(next)
+    run(() => desk.calendar.setHidden(next))
+  }
+
+  // 把待辦拖到某一天：設成那天截止
+  const dropOn = (date: string) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (e.dataTransfer.types.includes(TASK_DRAG)) {
+        e.preventDefault()
+        e.currentTarget.classList.add('is-drop')
+      }
+    },
+    onDragLeave: (e: React.DragEvent) => e.currentTarget.classList.remove('is-drop'),
+    onDrop: (e: React.DragEvent) => {
+      e.currentTarget.classList.remove('is-drop')
+      const id = e.dataTransfer.getData(TASK_DRAG)
+      if (id) {
+        e.preventDefault()
+        run(() => desk.tasks.update(id, { due_date: date }))
+      }
+    }
+  })
+
+  const tasksOn = (date: string): Task[] => tasks.filter((t) => t.due_date === date)
+  const newEvent = (date: string, hour?: number): void => {
+    if (googleOn) setDialog({ kind: 'new', date, hour })
   }
 
   return (
     <div className="calendar">
       <div className="cal-toolbar">
-        <button className="btn" onClick={() => setAnchor(todayStr())}>
+        <button className="btn btn-small" onClick={() => setAnchor(todayStr())}>
           今天
         </button>
-        <button className="icon-btn" onClick={() => step(-1)} aria-label="上一頁">
-          ‹
-        </button>
-        <button className="icon-btn" onClick={() => step(1)} aria-label="下一頁">
-          ›
-        </button>
+        <IconButton icon={ChevronLeft} label="上一頁" onClick={() => step(-1)} />
+        <IconButton icon={ChevronRight} label="下一頁" onClick={() => step(1)} />
         <h3 className="cal-title">{title}</h3>
         {loading && <span className="muted">讀取中…</span>}
         <span className="spacer" />
@@ -167,39 +169,88 @@ function SignedInCalendar({ run }: { run: Run }) {
             週
           </button>
         </div>
-        <button className="btn btn-primary" onClick={() => setDialog({ kind: 'new', date: today })}>
-          ＋ 新增行程
-        </button>
+        {googleOn ? (
+          <>
+            <IconButton icon={Eye} label="選擇要顯示的 Google 行事曆" active={showPicker} onClick={() => setShowPicker(!showPicker)} />
+            <IconButton icon={RefreshCw} label="重新讀取 Google 行程" onClick={() => load()} />
+            <IconButton icon={Plus} label="新增 Google 行程" onClick={() => setDialog({ kind: 'new', date: today })} />
+          </>
+        ) : (
+          g.configured && (
+            <IconButton
+              icon={CalendarPlus}
+              label={g.state === 'expired' ? 'Google 登入已過期，重新登入' : '連接 Google 行事曆'}
+              onClick={() => run(() => desk.google.signIn())}
+            />
+          )
+        )}
       </div>
 
-      <ul className="cal-legend">
-        {calendars.map((c) => (
-          <li key={c.id}>
-            <label className="check">
-              <input type="checkbox" checked={!hidden.includes(c.id)} onChange={() => toggleCal(c.id)} />
-              <span className="swatch" style={{ background: c.color }} />
-              {c.name}
-            </label>
-          </li>
-        ))}
+      <ul className="cal-legend" aria-label="顏色說明">
+        <li><span className="swatch is-overdue" />逾期待辦</li>
+        <li><span className="swatch is-today" />今天到期</li>
+        <li><span className="swatch is-upcoming" />之後到期</li>
+        <li><span className="swatch is-done" />已完成</li>
+        {googleOn && <li><span className="swatch is-google" />Google 行程</li>}
+        <li className="muted">把右邊的待辦拖到日期上就能設定截止日</li>
       </ul>
 
+      {showPicker && googleOn && (
+        <ul className="cal-picker">
+          {calendars
+            .filter((c) => !c.research)
+            .map((c) => (
+              <li key={c.id}>
+                <label className="check">
+                  <input type="checkbox" checked={!hidden.includes(c.id)} onChange={() => toggleCal(c.id)} />
+                  {c.name}
+                </label>
+              </li>
+            ))}
+        </ul>
+      )}
+
       {mode === 'month' ? (
-        <MonthGrid
-          range={range}
-          month={anchor.slice(0, 7)}
-          today={today}
-          events={visible}
-          onNew={(date) => setDialog({ kind: 'new', date })}
-          onOpen={(event) => setDialog({ kind: 'edit', event })}
-        />
+        <div className="month">
+          {WEEKDAYS.map((w) => (
+            <div key={w} className="month-head">
+              {w}
+            </div>
+          ))}
+          {Array.from({ length: daysBetween(range.start, range.end) }, (_, i) => addDays(range.start, i)).map((d) => {
+            const dayTasks = tasksOn(d)
+            const dayEvents = eventsOn(googleEvents, d)
+            const shown = 3
+            return (
+              <div
+                key={d}
+                className={`month-cell${d.slice(0, 7) !== anchor.slice(0, 7) ? ' is-other' : ''}${d === today ? ' is-today' : ''}`}
+                onClick={() => newEvent(d)}
+                {...dropOn(d)}
+              >
+                <span className="month-date">{Number(d.slice(8))}</span>
+                {dayTasks.slice(0, shown).map((t) => (
+                  <TaskChip key={t.id} task={t} selected={t.id === selectedTask} onSelect={onSelectTask} />
+                ))}
+                {dayEvents.slice(0, Math.max(0, shown - dayTasks.length)).map((e) => (
+                  <EventChip key={e.calendarId + e.id} event={e} onOpen={(event) => setDialog({ kind: 'edit', event })} />
+                ))}
+                {dayTasks.length + dayEvents.length > shown && <span className="more">還有 {dayTasks.length + dayEvents.length - shown} 項</span>}
+              </div>
+            )
+          })}
+        </div>
       ) : (
         <WeekGrid
           range={range}
           today={today}
-          events={visible}
-          onNew={(date, hour) => setDialog({ kind: 'new', date, hour })}
+          tasksOn={tasksOn}
+          events={googleEvents}
+          selectedTask={selectedTask}
+          onSelectTask={onSelectTask}
+          onNew={newEvent}
           onOpen={(event) => setDialog({ kind: 'edit', event })}
+          dropOn={dropOn}
         />
       )}
 
@@ -230,11 +281,27 @@ function SignedInCalendar({ run }: { run: Run }) {
   )
 }
 
-function Chip({ event, onOpen }: { event: CalendarEvent; onOpen: (e: CalendarEvent) => void }) {
+function TaskChip({ task, selected, onSelect }: { task: Task; selected: boolean; onSelect: (id: string) => void }) {
   return (
     <button
-      className={`chip-event${event.allDay ? ' is-allday' : ''}`}
-      style={{ ['--c' as string]: event.color }}
+      className={`chip-event chip-task is-${taskState(task)}${selected ? ' is-selected' : ''}`}
+      draggable
+      onDragStart={(e) => e.dataTransfer.setData(TASK_DRAG, task.id)}
+      onClick={(e) => {
+        e.stopPropagation()
+        onSelect(task.id)
+      }}
+      title={`待辦：${task.title}`}
+    >
+      {task.title}
+    </button>
+  )
+}
+
+function EventChip({ event, onOpen }: { event: CalendarEvent; onOpen: (e: CalendarEvent) => void }) {
+  return (
+    <button
+      className={`chip-event chip-google${event.allDay ? ' is-allday' : ''}`}
       onClick={(e) => {
         e.stopPropagation()
         onOpen(event)
@@ -247,56 +314,13 @@ function Chip({ event, onOpen }: { event: CalendarEvent; onOpen: (e: CalendarEve
   )
 }
 
-function MonthGrid({
-  range,
-  month,
-  today,
-  events,
-  onNew,
-  onOpen
-}: {
-  range: { start: string; end: string }
-  month: string
-  today: string
-  events: CalendarEvent[]
-  onNew: (date: string) => void
-  onOpen: (e: CalendarEvent) => void
-}) {
-  const days = Array.from({ length: daysBetween(range.start, range.end) }, (_, i) => addDays(range.start, i))
-  return (
-    <div className="month">
-      {WEEKDAYS.map((w) => (
-        <div key={w} className="month-head">
-          {w}
-        </div>
-      ))}
-      {days.map((d) => {
-        const list = onDay(events, d).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.localeCompare(b.start))
-        return (
-          <div
-            key={d}
-            className={`month-cell${d.slice(0, 7) !== month ? ' is-other' : ''}${d === today ? ' is-today' : ''}`}
-            onClick={() => onNew(d)}
-          >
-            <span className="month-date">{Number(d.slice(8))}</span>
-            {list.slice(0, 3).map((e) => (
-              <Chip key={e.calendarId + e.id} event={e} onOpen={onOpen} />
-            ))}
-            {list.length > 3 && <span className="more">還有 {list.length - 3} 項</span>}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 /** 同一天互相重疊的行程排成並排的欄 */
 function layoutDay(list: CalendarEvent[], date: string) {
+  const base = new Date(`${date}T00:00:00`).getTime()
   const items = list
     .map((e) => {
-      const s = Math.max(new Date(e.start).getTime(), new Date(`${date}T00:00:00`).getTime())
+      const s = Math.max(new Date(e.start).getTime(), base)
       const en = Math.min(new Date(e.end).getTime(), new Date(`${addDays(date, 1)}T00:00:00`).getTime())
-      const base = new Date(`${date}T00:00:00`).getTime()
       return { e, top: (s - base) / 60000, bottom: Math.max((en - base) / 60000, (s - base) / 60000 + 20), lane: 0, lanes: 1 }
     })
     .sort((a, b) => a.top - b.top)
@@ -316,15 +340,23 @@ function layoutDay(list: CalendarEvent[], date: string) {
 function WeekGrid({
   range,
   today,
+  tasksOn,
   events,
+  selectedTask,
+  onSelectTask,
   onNew,
-  onOpen
+  onOpen,
+  dropOn
 }: {
   range: { start: string; end: string }
   today: string
+  tasksOn: (date: string) => Task[]
   events: CalendarEvent[]
+  selectedTask: string | null
+  onSelectTask: (id: string) => void
   onNew: (date: string, hour?: number) => void
   onOpen: (e: CalendarEvent) => void
+  dropOn: (date: string) => Record<string, (e: React.DragEvent) => void>
 }) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(range.start, i))
   const body = useRef<HTMLDivElement>(null)
@@ -346,11 +378,14 @@ function WeekGrid({
       <div className="week-allday">
         <div className="week-gutter">全天</div>
         {days.map((d) => (
-          <div key={d} className="week-allday-cell" onClick={() => onNew(d)}>
-            {onDay(events, d)
+          <div key={d} className="week-allday-cell" onClick={() => onNew(d)} {...dropOn(d)}>
+            {tasksOn(d).map((t) => (
+              <TaskChip key={t.id} task={t} selected={t.id === selectedTask} onSelect={onSelectTask} />
+            ))}
+            {eventsOn(events, d)
               .filter((e) => e.allDay)
               .map((e) => (
-                <Chip key={e.calendarId + e.id} event={e} onOpen={onOpen} />
+                <EventChip key={e.calendarId + e.id} event={e} onOpen={onOpen} />
               ))}
           </div>
         ))}
@@ -369,14 +404,13 @@ function WeekGrid({
               <div key={h} className="hour-slot" style={{ height: HOUR_PX }} onClick={() => onNew(d, h)} />
             ))}
             {layoutDay(
-              onDay(events, d).filter((e) => !e.allDay),
+              eventsOn(events, d).filter((e) => !e.allDay),
               d
             ).map(({ e, top, bottom, lane, lanes }) => (
               <button
                 key={e.calendarId + e.id}
-                className="week-event"
+                className="week-event chip-google"
                 style={{
-                  ['--c' as string]: e.color,
                   top: (top / 60) * HOUR_PX,
                   height: ((bottom - top) / 60) * HOUR_PX - 2,
                   left: `${(lane / lanes) * 100}%`,

@@ -1,5 +1,6 @@
 import type { Focus, Task, TaskLinks } from '../../../shared/types'
 import { relativeDay, todayStr } from '../dates'
+import { TASK_DRAG } from '../dnd'
 
 interface Props {
   task: Task
@@ -11,12 +12,23 @@ interface Props {
   /** 這個待辦連到的心智圖節點與文獻 */
   links?: TaskLinks
   onNavigate?: (f: Focus) => void
+  /** 可以拖到行事曆的日期上設定截止日 */
+  draggable?: boolean
+  /** 在行事曆上點了這個待辦：反白並捲到看得到的地方 */
+  highlighted?: boolean
 }
 
-export function TaskRow({ task, onToggle, editable, onRename, onDate, onRemove, links, onNavigate }: Props) {
+export function TaskRow({ task, onToggle, editable, onRename, onDate, onRemove, links, onNavigate, draggable, highlighted }: Props) {
   const overdue = !task.done && task.due_date !== null && task.due_date < todayStr()
   return (
-    <li className={`task-row${task.done ? ' is-done' : ''}${overdue ? ' is-overdue' : ''}`}>
+    <li
+      className={`task-row${task.done ? ' is-done' : ''}${overdue ? ' is-overdue' : ''}${highlighted ? ' is-highlighted' : ''}`}
+      draggable={draggable}
+      onDragStart={draggable ? (e) => e.dataTransfer.setData(TASK_DRAG, task.id) : undefined}
+      ref={(el) => {
+        if (highlighted && el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }}
+    >
       <input
         type="checkbox"
         checked={!!task.done}

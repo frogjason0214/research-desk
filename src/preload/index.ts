@@ -100,7 +100,9 @@ const api: DeskApi = {
     events: call('calendar.events'),
     create: call('calendar.create'),
     update: call('calendar.update'),
-    remove: call('calendar.remove')
+    remove: call('calendar.remove'),
+    hidden: call('calendar.hidden'),
+    setHidden: call('calendar.setHidden')
   },
   update: {
     check: call('update.check'),

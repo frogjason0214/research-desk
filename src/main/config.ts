@@ -20,6 +20,8 @@ export interface LocalConfig {
   aiDaily?: boolean
   /** OpenAlex 免費金鑰（選填），推薦新文獻的查詢額度較多 */
   openAlexKey?: string
+  /** 行事曆上隱藏的 Google 行事曆 ID（關掉程式後也記得） */
+  calendarHidden?: string[]
   /** 舊版設定：使用者選的資料夾，啟動時會轉成 syncDir */
   dataDir?: string
 }
