@@ -77,11 +77,12 @@ src/
 1. Google Cloud Console 建立專案，啟用 Google Calendar API。
 2. Google Auth Platform → 開始：目標對象選「外部」；在「目標對象 → 測試使用者」加入自己與同學的 Gmail（測試模式上限 100 人）。
 3. Google Auth Platform → 用戶端 → 建立用戶端 →「電腦版應用程式」。
-4. 把  複製成 ，填入用戶端 ID 與密碼，重新執行  或重新建置。
+4. 把 `.env.example` 複製成 `.env`，填入用戶端 ID 與密碼，重新執行 `npm run dev` 或重新建置。
 
+- 登入時權限畫面要勾選行事曆權限；沒勾的話 App 會提示重新登入。
 - 測試模式的登入約 7 天過期，App 會在邊欄與完整視窗提示重新登入。
-- 登入憑證以 Windows DPAPI 加密，只存在這台電腦（）；每台電腦各自登入。
-- 待辦事件的 ID 由待辦 ID 算出（ + UUID），兩台電腦同時推送也只有一個事件。
+- 登入憑證以 Windows DPAPI 加密，只存在這台電腦（`google-token.bin`）；每台電腦各自登入。
+- 待辦事件的 ID 由待辦 ID 算出（`rdt` + UUID），兩台電腦同時推送也只有一個事件。
 
 ## 下一步
 
