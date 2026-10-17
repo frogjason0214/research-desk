@@ -22,8 +22,10 @@ export class Store {
     this.db = new SQL.Database()
     this.db.exec(CACHE_SCHEMA)
     this.rebuild()
-    this.library.onChange(() => {
-      this.rebuild()
+    // 其他電腦的修改：只更新相關資料列；需要整份重算時 ops 是 null
+    this.library.onChange((ops) => {
+      if (ops) this.refreshRows(touchedRows(ops))
+      else this.rebuild()
       this.notify()
     })
   }
@@ -92,12 +94,7 @@ export class Store {
     })
     if (ops.length === 0) return
     this.library.append(ops)
-    const touched = new Map<string, Set<string>>()
-    for (const op of ops) {
-      if (!touched.has(op.tb)) touched.set(op.tb, new Set())
-      touched.get(op.tb)!.add(op.id)
-    }
-    this.refreshRows(touched)
+    this.refreshRows(touchedRows(ops))
     this.notify()
   }
 
@@ -108,4 +105,15 @@ export class Store {
   private notify(): void {
     this.listeners.forEach((l) => l())
   }
+}
+
+/** 一組修改動到哪些資料表的哪些資料列 */
+function touchedRows(ops: Op[]): Map<string, Set<string>> {
+  const touched = new Map<string, Set<string>>()
+  for (const op of ops) {
+    if (!TABLES[op.tb]) continue
+    if (!touched.has(op.tb)) touched.set(op.tb, new Set())
+    touched.get(op.tb)!.add(op.id)
+  }
+  return touched
 }

@@ -10,6 +10,7 @@ import type { Store } from '../store'
 import { aiBibliography, aiPsychFields } from './ai'
 import { crossrefByDoi } from './crossref'
 import { bylineAuthors, splitName, splitSiteSuffix } from './names'
+import { currentFiles, safeName, UNSORTED } from './organizer'
 import { chunkPages, detectLang, findDoi, search, type Chunk } from './text'
 import { captureWeb, snapshotHtml, type WebCapture } from './web'
 
@@ -18,9 +19,9 @@ import { captureWeb, snapshotHtml, type WebCapture } from './web'
 
 const MIN_TEXT = 200
 
-type Row = Omit<Paper, 'authors' | 'busy' | 'error'> & { authors: string | null }
+type Row = Omit<Paper, 'authors' | 'busy' | 'error'> & { authors: string | null; files: string | null }
 
-const fileOf = (id: string, ext: 'pdf' | 'html' | 'mhtml' | 'txt'): string => `papers/${id}.${ext}`
+type Ext = 'pdf' | 'html' | 'mhtml' | 'txt'
 
 function parseAuthors(json: string | null): Author[] {
   try {
@@ -77,8 +78,26 @@ export function createPapers(opts: {
     return p
   }
 
+  /** 新匯入的檔案先放在 <專案>未分類<id>.<副檔名>，整理器隨後會改名、搬到對應節點的資料夾 */
+  const writeNew = (projectId: string, id: string, ext: Ext, data: string | Uint8Array): string => {
+    const project = store.get<{ name: string }>('SELECT name FROM projects WHERE id = ?', [projectId])
+    const rel = path.join(safeName(project?.name ?? '專案'), UNSORTED, `${id}.${ext}`)
+    library.writeFile(rel, data)
+    return rel
+  }
+  const filesJson = (main: string[], txt: string | null): string => JSON.stringify({ main, txt, links: [] })
+
+  /** 依記錄的位置找檔案（舊版的位置也找得到） */
+  const locate = (id: string, ext: Ext): string | null => {
+    const r = row(id)
+    if (!r) return null
+    const f = currentFiles(r)
+    const rel = ext === 'txt' ? f.txt : f.main.find((m) => m.toLowerCase().endsWith(`.${ext}`))
+    return rel ? library.resolveFile(rel) : null
+  }
+
   const readText = (id: string): string => {
-    const file = library.resolveFile(fileOf(id, 'txt'))
+    const file = locate(id, 'txt')
     return file ? fs.readFileSync(file, 'utf8') : ''
   }
 
@@ -95,7 +114,7 @@ export function createPapers(opts: {
         if (bib) set(id, { ...nonEmpty(bib), bib_status: 'ok' })
       }
 
-      const pdfFile = library.resolveFile(fileOf(id, 'pdf'))
+      const pdfFile = locate(id, 'pdf')
       const source = text.length >= MIN_TEXT ? { text } : pdfFile ? { pdf: fs.readFileSync(pdfFile) } : null
       if (!source) return
 
@@ -161,12 +180,13 @@ export function createPapers(opts: {
       'papers.importPdf': async (projectId: string, file: PdfImport): Promise<string> => {
         const id = randomUUID()
         const text = file.pages.join('\f')
-        library.writeFile(fileOf(id, 'pdf'), new Uint8Array(file.data))
-        library.writeFile(fileOf(id, 'txt'), text)
+        const pdfRel = writeNew(projectId, id, 'pdf', new Uint8Array(file.data))
+        const txtRel = writeNew(projectId, id, 'txt', text)
         const firstPages = file.pages.slice(0, 2).join('\n')
         store.write((tx) =>
           tx.set('papers', id, {
             ...base(projectId, 'pdf', file.noAi),
+            files: filesJson([pdfRel], txtRel),
             title: file.name.replace(/\.pdf$/i, ''),
             lang: detectLang(firstPages),
             text_status: text.replace(/\s/g, '').length >= MIN_TEXT ? 'ok' : 'empty'
@@ -181,14 +201,15 @@ export function createPapers(opts: {
         // 先存到暫存資料夾，成功後才寫進文獻庫
         const tmp = path.join(os.tmpdir(), `rd-${id}.mhtml`)
         let c: WebCapture
+        let mhtmlRel: string
         try {
           c = await captureWeb(url.trim(), tmp)
-          library.writeFile(fileOf(id, 'mhtml'), fs.readFileSync(tmp))
+          mhtmlRel = writeNew(projectId, id, 'mhtml', fs.readFileSync(tmp))
         } finally {
           fs.rmSync(tmp, { force: true })
         }
-        library.writeFile(fileOf(id, 'html'), snapshotHtml(c, new Date().toLocaleString('zh-TW')))
-        library.writeFile(fileOf(id, 'txt'), c.text)
+        const htmlRel = writeNew(projectId, id, 'html', snapshotHtml(c, new Date().toLocaleString('zh-TW')))
+        const webTxtRel = writeNew(projectId, id, 'txt', c.text)
 
         const m = c.meta
         const hasCitation = !!(m.title && m.authors.length)
@@ -201,6 +222,7 @@ export function createPapers(opts: {
         store.write((tx) =>
           tx.set('papers', id, {
             ...base(projectId, 'web', noAi),
+            files: filesJson([htmlRel, mhtmlRel], webTxtRel),
             lang: detectLang(`${c.title}\n${c.text}`),
             text_status: c.text.length >= MIN_TEXT ? 'ok' : 'empty',
             title: named.title,
@@ -225,10 +247,11 @@ export function createPapers(opts: {
       'papers.importDoi': async (projectId: string, rec: Recommendation): Promise<string> => {
         const id = randomUUID()
         const bib = await crossrefByDoi(rec.doi).catch(() => null)
-        if (rec.abstract) library.writeFile(fileOf(id, 'txt'), `${rec.title}\n\n${rec.abstract}`)
+        const absRel = rec.abstract ? writeNew(projectId, id, 'txt', `${rec.title}\n\n${rec.abstract}`) : null
         store.write((tx) =>
           tx.set('papers', id, {
             ...base(projectId, 'ref', false),
+            files: filesJson([], absRel),
             lang: detectLang(rec.title),
             text_status: rec.abstract ? 'ok' : 'empty',
             title: rec.title,
@@ -283,16 +306,19 @@ export function createPapers(opts: {
           if (p.url) await shell.openExternal(p.url)
           return
         }
-        const rel = p.kind === 'pdf' ? fileOf(id, 'pdf') : fileOf(id, which === 'page' ? 'mhtml' : 'html')
-        const file = library.resolveFile(rel)
+        const file = locate(id, p.kind === 'pdf' ? 'pdf' : which === 'page' ? 'mhtml' : 'html')
         if (!file) throw new Error('找不到檔案。如果剛在另一台電腦匯入，請等雲端硬碟同步完成。')
         const err = await shell.openPath(file)
         if (err) throw new Error(err)
       },
 
       'papers.remove': (id: string): void => {
+        const r = row(id)
         store.write((tx) => tx.remove('papers', id))
-        for (const ext of ['pdf', 'html', 'mhtml', 'txt'] as const) library.removeFile(fileOf(id, ext))
+        if (r) {
+          const f = currentFiles(r)
+          for (const rel of [...f.main, ...(f.txt ? [f.txt] : []), ...f.links]) library.removeFile(rel)
+        }
         chunkCache.delete(id)
       },
 

@@ -4,7 +4,8 @@ import fs from 'node:fs'
 // 資料表與欄位。資料本身存成「變更紀錄」，這裡的 SQLite 只是記憶體裡的查詢快取。
 
 export const TABLES: Record<string, { fields: string[]; required: string[] }> = {
-  projects: { fields: ['name', 'created_at'], required: ['name'] },
+  // folder：文獻資料夾目前的位置（改名時用來把整個資料夾跟著改名）
+  projects: { fields: ['name', 'created_at', 'folder'], required: ['name'] },
   milestones: {
     fields: ['project_id', 'title', 'due_date', 'done', 'sort', 'is_defense'],
     required: ['project_id', 'title']
@@ -20,13 +21,15 @@ export const TABLES: Record<string, { fields: string[]; required: string[] }> = 
       'title', 'authors', 'year', 'date', 'journal', 'volume', 'issue', 'pages', 'doi', 'url',
       // 心理學欄位
       'study_type', 'sample', 'measures', 'findings', 'ai_filled',
-      'notes', 'no_ai', 'notes_no_ai', 'text_status', 'added_at'
+      'notes', 'no_ai', 'notes_no_ai', 'text_status', 'added_at',
+      // 檔案目前的位置（相對於「文獻」資料夾，JSON）：{ main: [...], txt, links: [...] }
+      'files'
     ],
     required: ['project_id', 'kind']
   },
-  mindmaps: { fields: ['project_id', 'name', 'created_at'], required: ['project_id', 'name'] },
+  mindmaps: { fields: ['project_id', 'name', 'created_at', 'folder'], required: ['project_id', 'name'] },
   mm_nodes: {
-    fields: ['map_id', 'parent_id', 'text', 'x', 'y', 'collapsed', 'color', 'created_at'],
+    fields: ['map_id', 'parent_id', 'text', 'x', 'y', 'collapsed', 'color', 'created_at', 'folder'],
     required: ['map_id']
   },
   conversations: {
@@ -48,7 +51,7 @@ export const TABLES: Record<string, { fields: string[]; required: string[] }> = 
 export const DELETED = '_deleted'
 
 export const CACHE_SCHEMA = `
-CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT, created_at TEXT);
+CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT, created_at TEXT, folder TEXT);
 CREATE TABLE milestones (
   id TEXT PRIMARY KEY, project_id TEXT, title TEXT, due_date TEXT,
   done INTEGER DEFAULT 0, sort INTEGER DEFAULT 0, is_defense INTEGER DEFAULT 0
@@ -64,13 +67,13 @@ CREATE TABLE papers (
   doi TEXT DEFAULT '', url TEXT DEFAULT '',
   study_type TEXT DEFAULT '', sample TEXT DEFAULT '', measures TEXT DEFAULT '', findings TEXT DEFAULT '',
   ai_filled INTEGER DEFAULT 0, notes TEXT DEFAULT '', no_ai INTEGER DEFAULT 0, notes_no_ai INTEGER DEFAULT 0,
-  text_status TEXT DEFAULT 'pending', added_at TEXT
+  text_status TEXT DEFAULT 'pending', added_at TEXT, files TEXT
 );
 CREATE INDEX idx_papers_project ON papers(project_id);
-CREATE TABLE mindmaps (id TEXT PRIMARY KEY, project_id TEXT, name TEXT, created_at TEXT);
+CREATE TABLE mindmaps (id TEXT PRIMARY KEY, project_id TEXT, name TEXT, created_at TEXT, folder TEXT);
 CREATE TABLE mm_nodes (
   id TEXT PRIMARY KEY, map_id TEXT, parent_id TEXT, text TEXT DEFAULT '',
-  x REAL DEFAULT 0, y REAL DEFAULT 0, collapsed INTEGER DEFAULT 0, color TEXT DEFAULT '', created_at TEXT
+  x REAL DEFAULT 0, y REAL DEFAULT 0, collapsed INTEGER DEFAULT 0, color TEXT DEFAULT '', created_at TEXT, folder TEXT
 );
 CREATE INDEX idx_nodes_map ON mm_nodes(map_id);
 CREATE TABLE links (id TEXT PRIMARY KEY, a_type TEXT, a_id TEXT, b_type TEXT, b_id TEXT);

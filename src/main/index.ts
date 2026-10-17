@@ -5,6 +5,7 @@ import type { AiStatus, AppStatus, Focus, SidebarLayout } from '../shared/types'
 import { createProfessor } from './ai/professor'
 import { Gemini, GEMINI_MODEL } from './ai/gemini'
 import { createPapers } from './papers'
+import { Organizer } from './papers/organizer'
 import { detectCloudFolders } from './cloud'
 import { loadConfig, saveConfig, type LocalConfig } from './config'
 import { createGoogle } from './google'
@@ -335,6 +336,19 @@ if (!app.requestSingleInstanceLock()) {
       autoFill: () => config.aiAutoFill ?? true,
       onChange: broadcastChanged
     })
+    // 文獻檔案依心智圖節點整理；資料變動後幾秒執行一次
+    const organizer = new Organizer(store, library, (link, target) => {
+      try {
+        if (shell.readShortcutLink(link).target === target) return // 已經是對的就不重寫，避免雲端硬碟一直同步
+      } catch {
+        /* 還沒有捷徑 */
+      }
+      fs.mkdirSync(path.dirname(link), { recursive: true })
+      shell.writeShortcutLink(link, 'replace', { target })
+    })
+    store.onChange(() => organizer.schedule())
+    organizer.schedule()
+
     professor = createProfessor({
       store,
       gemini,
