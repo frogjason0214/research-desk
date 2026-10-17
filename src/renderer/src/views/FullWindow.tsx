@@ -4,6 +4,7 @@ import {
   BookOpen,
   CalendarDays,
   GraduationCap,
+  NotebookPen,
   PanelRightClose,
   Settings,
   Workflow,
@@ -22,16 +23,18 @@ import { SyncSettings } from '../components/SyncSettings'
 import { desk, useDesk, useRun, type DeskState } from '../useDesk'
 import { LiteratureView } from './LiteratureView'
 import { MindMapView } from './MindMapView'
+import { NotesView } from './NotesView'
 import { ProfessorView } from './ProfessorView'
 import { TodayView } from './TodayView'
 
-/** 左側導覽的五個入口；「今天」是打開時的第一頁 */
-type Page = 'today' | 'literature' | 'mindmap' | 'professor' | 'settings'
+/** 左側導覽的入口；「今天」是打開時的第一頁 */
+type Page = 'today' | 'literature' | 'mindmap' | 'notes' | 'professor' | 'settings'
 
 const PAGES: [Page, string, LucideIcon][] = [
   ['today', '今天', CalendarDays],
   ['literature', '文獻', BookOpen],
   ['mindmap', '心智圖', Workflow],
+  ['notes', '筆記', NotebookPen],
   ['professor', 'AI 教授', GraduationCap],
   ['settings', '設定', Settings]
 ]
@@ -156,6 +159,7 @@ export function FullWindow() {
                 onNavigate={navigate}
               />
             )}
+            {page === 'notes' && <NotesView key={current.id} projectId={current.id} run={run} onNavigate={navigate} />}
             {page === 'professor' && (
               <ProfessorView
                 projectId={current.id}

@@ -19,6 +19,10 @@ import { readLegacyRows, TABLES } from './schema'
 export const LIBRARY_FOLDER = 'ResearchDesk'
 const CHANGES = 'changes'
 export const FILES = '文獻'
+/** 筆記的 Markdown 副本與圖片 */
+export const NOTES = '筆記'
+/** 使用者看得到的檔案資料夾：開關同步時整個搬動 */
+const USER_DIRS = [FILES, NOTES]
 const PENDING = 'pending.jsonl'
 const LEGACY_DB = 'research-desk.sqlite'
 const LEGACY_LOCK = 'research-desk.lock'
@@ -215,6 +219,23 @@ export class Library {
     for (const dir of [this.cloudDir, this.localDir]) if (dir) fs.rmSync(path.join(dir, FILES, rel), { force: true })
   }
 
+  /** 筆記資料夾（Markdown 副本與圖片）的根目錄；雲端找不到時暫存在本機 */
+  get notesDir(): string {
+    return path.join(this.cloudDir && !this.available ? this.localDir : this.activeDir, NOTES)
+  }
+
+  /** 找出筆記資料夾裡的檔案：雲端優先，其次是本機暫存 */
+  resolveNote(rel: string): string | null {
+    for (const dir of [this.available ? this.cloudDir : null, this.localDir]) {
+      if (dir && fs.existsSync(path.join(dir, NOTES, rel))) return path.join(dir, NOTES, rel)
+    }
+    return null
+  }
+
+  writeNote(rel: string, data: string | Uint8Array): void {
+    writeAtomic(path.join(this.notesDir, rel), data)
+  }
+
   /** 曾經同步過資料的其他電腦數量 */
   otherDevices(): number {
     return listLogs(this.activeDir).filter((n) => n !== this.ownName && sizeOf(path.join(this.activeDir, CHANGES, n)) > 0).length
@@ -358,7 +379,7 @@ export class Library {
       }
       this.flushPending()
       // 雲端找不到時暫存在本機的檔案，搬到雲端
-      moveTree(path.join(this.localDir, FILES), path.join(this.cloudDir, FILES))
+      for (const d of USER_DIRS) moveTree(path.join(this.localDir, d), path.join(this.cloudDir, d))
       const fresh = this.readChanges(this.cloudDir)
       this.lastSyncAt = Date.now()
       if (fresh === null) {
@@ -454,7 +475,7 @@ export class Library {
     // 已經在用雲端（例如換資料夾）時，目前的資料都在舊的雲端資料夾裡，先抄回本機再搬
     if (this.cloudDir && this.available && this.cloudDir !== dir) {
       copyTree(path.join(this.cloudDir, CHANGES), path.join(this.localDir, CHANGES))
-      copyTree(path.join(this.cloudDir, FILES), path.join(this.localDir, FILES))
+      for (const d of USER_DIRS) copyTree(path.join(this.cloudDir, d), path.join(this.localDir, d))
     }
     if (cloudHasData && this.hasLocalData() && !choice) return 'needsChoice'
     if (cloudHasData && choice === 'discard') this.discardLocal()
@@ -466,7 +487,7 @@ export class Library {
       fs.rmSync(this.pendingFile, { force: true })
     }
     this.moveLocalLogsTo(dir)
-    moveTree(path.join(this.localDir, FILES), path.join(dir, FILES))
+    for (const d of USER_DIRS) moveTree(path.join(this.localDir, d), path.join(dir, d))
     this.migrated.delete(dir)
     this.cloudDir = dir
     this.loadAll(dir)
@@ -494,7 +515,7 @@ export class Library {
       for (const name of listLogs(this.cloudDir)) {
         writeAtomic(path.join(this.localDir, CHANGES, name), readText(path.join(this.cloudDir, CHANGES, name)))
       }
-      copyTree(path.join(this.cloudDir, FILES), path.join(this.localDir, FILES))
+      for (const d of USER_DIRS) copyTree(path.join(this.cloudDir, d), path.join(this.localDir, d))
     } else {
       // 雲端找不到：暫存的修改留在本機自己的紀錄裡
       const pending = readText(this.pendingFile)

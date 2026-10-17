@@ -64,6 +64,18 @@ const api: DeskApi = {
     remove: call('nodes.remove'),
     createTask: call('nodes.createTask')
   },
+  notes: {
+    pages: call('notes.pages'),
+    create: call('notes.create'),
+    rename: call('notes.rename'),
+    move: call('notes.move'),
+    trash: call('notes.trash'),
+    restore: call('notes.restore'),
+    purge: call('notes.purge'),
+    blocks: call('notes.blocks'),
+    saveBlocks: call('notes.saveBlocks'),
+    saveImage: call('notes.saveImage')
+  },
   marks: {
     list: call('marks.list'),
     add: call('marks.add'),

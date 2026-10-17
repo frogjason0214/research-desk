@@ -1,6 +1,7 @@
-import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, screen, shell } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import type { AiStatus, AppStatus, Focus, SidebarLayout } from '../shared/types'
 import { createProfessor } from './ai/professor'
 import { Gemini, GEMINI_MODEL } from './ai/gemini'
@@ -11,6 +12,7 @@ import { loadConfig, saveConfig, type LocalConfig } from './config'
 import { createGoogle } from './google'
 import { createDataHandlers } from './handlers'
 import { createMindmapHandlers } from './mindmaps'
+import { ATTACHMENTS, createNotesHandlers, IMAGE_SCHEME, imageType, NotesMirror } from './notes'
 import { Library, LIBRARY_FOLDER, type AttachChoice, type AttachResult } from './library'
 import { Store } from './store'
 import { createUpdater } from './updater'
@@ -186,18 +188,25 @@ function status(): AppStatus {
 function registerIpc(): void {
   const data = createDataHandlers(store) as Record<string, (...args: never[]) => unknown>
   const mindmaps = createMindmapHandlers(store)
+  const notes = createNotesHandlers(store, library)
+  notes.purgeOldTrash()
 
   const handlers: Record<string, (...args: never[]) => unknown> = {
     ...data,
     ...(google.handlers as Record<string, (...args: never[]) => unknown>),
     ...(papers.handlers as Record<string, (...args: never[]) => unknown>),
     ...(mindmaps as Record<string, (...args: never[]) => unknown>),
-    // 刪除專案時連同文獻的檔案、心智圖一起刪
+    ...(notes as Record<string, (...args: never[]) => unknown>),
+    // 刪除專案時連同文獻的檔案、心智圖、筆記一起刪
     'projects.remove': (id: string) => {
       for (const p of store.all<{ id: string }>('SELECT id FROM papers WHERE project_id = ?', [id]))
         papers.handlers['papers.remove'](p.id)
       for (const m of store.all<{ id: string }>('SELECT id FROM mindmaps WHERE project_id = ?', [id]))
         mindmaps['mindmaps.remove'](m.id)
+      for (const p of store.all<{ id: string }>('SELECT id FROM note_pages WHERE project_id = ? AND parent_id IS NULL', [id]))
+        notes['notes.purge'](p.id)
+      // 上層已經不在的頁面（例如兩台電腦同時搬動）也一起清掉
+      for (const p of store.all<{ id: string }>('SELECT id FROM note_pages WHERE project_id = ?', [id])) notes['notes.purge'](p.id)
       for (const c of store.all<{ id: string }>('SELECT id FROM conversations WHERE project_id = ?', [id]))
         professor.handlers['professor.remove'](c.id)
       const tips = store.all<{ id: string }>('SELECT id FROM daily_tips WHERE project_id = ?', [id])
@@ -353,6 +362,17 @@ if (!app.requestSingleInstanceLock()) {
     })
     store.onChange(() => organizer.schedule())
     organizer.schedule()
+    // 筆記的 Markdown 副本
+    const mirror = new NotesMirror(store, library)
+    store.onChange(() => mirror.schedule())
+    mirror.schedule()
+    // 筆記裡的圖片：desk-note:附件/xxx.png → 筆記資料夾裡的檔案
+    protocol.handle(IMAGE_SCHEME, (req) => {
+      const rel = decodeURIComponent(req.url.slice(IMAGE_SCHEME.length + 1)).replace(/^\/+/, '')
+      const parts = rel.split('/')
+      const file = parts.length === 2 && parts[0] === ATTACHMENTS && !rel.includes('..') && imageType(rel) ? library.resolveNote(rel) : null
+      return file ? net.fetch(pathToFileURL(file).toString()) : new Response('找不到圖片', { status: 404 })
+    })
 
     professor = createProfessor({
       store,

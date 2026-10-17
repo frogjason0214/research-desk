@@ -37,6 +37,12 @@ export const TABLES: Record<string, { fields: string[]; required: string[] }> = 
     fields: ['map_id', 'kind', 'color', 'size', 'points', 'x', 'y', 'w', 'text', 'created_at'],
     required: ['map_id', 'kind']
   },
+  // 筆記：頁面樹與頁面裡的區塊（以區塊為單位合併，兩台電腦改不同段落不會互蓋）
+  note_pages: {
+    fields: ['project_id', 'parent_id', 'title', 'sort', 'created_at', 'updated_at', 'trashed_at'],
+    required: ['project_id']
+  },
+  note_blocks: { fields: ['page_id', 'sort', 'content'], required: ['page_id'] },
   conversations: {
     fields: ['project_id', 'title', 'role', 'created_at', 'updated_at'],
     required: ['project_id', 'role']
@@ -87,6 +93,13 @@ CREATE TABLE mm_marks (
 );
 CREATE INDEX idx_marks_map ON mm_marks(map_id);
 CREATE TABLE links (id TEXT PRIMARY KEY, a_type TEXT, a_id TEXT, b_type TEXT, b_id TEXT);
+CREATE TABLE note_pages (
+  id TEXT PRIMARY KEY, project_id TEXT, parent_id TEXT, title TEXT DEFAULT '', sort REAL DEFAULT 0,
+  created_at TEXT, updated_at TEXT, trashed_at TEXT
+);
+CREATE INDEX idx_note_pages_project ON note_pages(project_id);
+CREATE TABLE note_blocks (id TEXT PRIMARY KEY, page_id TEXT, sort REAL DEFAULT 0, content TEXT DEFAULT '{}');
+CREATE INDEX idx_note_blocks_page ON note_blocks(page_id);
 CREATE TABLE conversations (id TEXT PRIMARY KEY, project_id TEXT, title TEXT DEFAULT '', role TEXT, created_at TEXT, updated_at TEXT);
 CREATE TABLE messages (id TEXT PRIMARY KEY, conversation_id TEXT, role TEXT, text TEXT DEFAULT '', sources TEXT DEFAULT '[]', created_at TEXT);
 CREATE INDEX idx_messages_conv ON messages(conversation_id);

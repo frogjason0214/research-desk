@@ -197,6 +197,32 @@ export type MarkPatch = Partial<Pick<MindMark, 'x' | 'y' | 'w' | 'text' | 'color
 
 export type LinkType = 'node' | 'task' | 'paper'
 
+/** 筆記頁：每個專案一棵頁面樹；trashed_at 有值表示在垃圾桶（30 天後永久刪除） */
+export interface NotePage {
+  id: string
+  project_id: string
+  /** null = 最上層 */
+  parent_id: string | null
+  title: string
+  /** 同一層的排序（小的在前，可以是小數） */
+  sort: number
+  created_at: string
+  updated_at: string
+  trashed_at: string | null
+}
+
+/** 筆記頁裡的一個區塊（段落、標題、清單、表格…），content 是編輯器的 JSON */
+export interface NoteBlock {
+  id: string
+  sort: number
+  content: string
+}
+
+export interface NoteBlockChanges {
+  upserts: { id: string; sort: number; content?: string }[]
+  removes: string[]
+}
+
 /** 指向某個心智圖節點 */
 export interface NodeRef {
   mapId: string
@@ -443,6 +469,19 @@ export interface DeskApi {
     move(moves: { id: string; x: number; y: number }[]): Promise<void>
     remove(id: string): Promise<void>
     createTask(nodeId: string, title: string, dueDate: string | null): Promise<void>
+  }
+  notes: {
+    pages(projectId: string): Promise<NotePage[]>
+    create(projectId: string, parentId: string | null): Promise<NotePage>
+    rename(id: string, title: string): Promise<void>
+    move(id: string, parentId: string | null, sort: number): Promise<void>
+    trash(id: string): Promise<void>
+    restore(id: string): Promise<void>
+    purge(id: string): Promise<void>
+    blocks(pageId: string): Promise<NoteBlock[]>
+    saveBlocks(pageId: string, changes: NoteBlockChanges): Promise<void>
+    /** 貼上或拖進來的圖片：存進「筆記附件」，回傳編輯器用的 src */
+    saveImage(name: string, data: ArrayBuffer): Promise<string>
   }
   marks: {
     list(mapId: string): Promise<MindMark[]>
