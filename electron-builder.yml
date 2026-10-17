@@ -11,6 +11,17 @@ win:
   target: nsis
 # 檔名不要有空格，GitHub 會把空格換成點，自動更新會找不到檔案
 artifactName: ResearchDesk-Setup-${version}.${ext}
+# Mac 測試版：只存本機、不簽章（沒有 Apple 開發者帳號），由 GitHub Actions 在 Mac 上建置
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  category: public.app-category.education
+  identity: null
+  artifactName: ResearchDesk-${version}-mac-${arch}.${ext}
+dmg:
+  artifactName: ResearchDesk-${version}-mac-${arch}.${ext}
+afterSign: scripts/mac-adhoc-sign.cjs
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

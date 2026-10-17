@@ -180,6 +180,8 @@ function updateText(u: UpdateStatus): string {
   switch (u.state) {
     case 'dev':
       return '（開發模式，不檢查更新）'
+    case 'manual':
+      return '・Mac 測試版不會自動更新，新版請到 GitHub 下載'
     case 'checking':
       return '・正在檢查更新…'
     case 'latest':
@@ -328,6 +330,10 @@ function SettingsView({ state, run, onDeleted }: { state: DeskState; run: Run; o
         {state.status.update.state === 'ready' ? (
           <button className="btn btn-primary" onClick={() => run(() => desk.update.install())}>
             重新啟動並更新
+          </button>
+        ) : state.status.update.state === 'manual' ? (
+          <button className="btn" onClick={() => window.open('https://github.com/frogjason0214/research-desk/releases')}>
+            到 GitHub 下載新版
           </button>
         ) : (
           state.status.update.state !== 'dev' && (

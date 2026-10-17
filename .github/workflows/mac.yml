@@ -1,0 +1,59 @@
+# Mac 測試版：在 GitHub 的 Mac 機器上建置 .dmg，放在「mac-v<版本>」預先發行版。
+# Windows 版發布（建立 v* 標籤）時自動執行，也可以在 Actions 頁面手動執行。
+# Windows 的自動更新只看正式版，不會讀到這裡的預先發行版。
+name: Mac 測試版
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Google 行事曆的用戶端（和 Windows 版的 .env 相同），存在 repo 的 Secrets
+      - name: 寫入 .env
+        env:
+          GOOGLE_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: |
+          if [ -z "$GOOGLE_ID" ]; then echo "::warning::沒有設定 GOOGLE_CLIENT_ID，Mac 版不能登入 Google 行事曆"; fi
+          printf 'MAIN_VITE_GOOGLE_CLIENT_ID=%s\nMAIN_VITE_GOOGLE_CLIENT_SECRET=%s\n' "$GOOGLE_ID" "$GOOGLE_SECRET" > .env
+
+      - run: npm run typecheck
+
+      - name: 建置 .dmg
+        run: npx electron-vite build && npx electron-builder --mac --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-dmg
+          path: dist/*.dmg
+
+      - name: 放到預先發行版
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="mac-v$VERSION"
+          NOTES="Mac 測試版（只存在這台電腦，不支援跨電腦同步；沒有 Apple 簽章，不會自動更新）。
+          Apple 晶片（M1 以後）下載 arm64，Intel Mac 下載 x64。
+          第一次打開：在 Finder 對程式按右鍵 →「打開」；被擋下時到「系統設定 → 隱私權與安全性」最下面按「強制打開」。"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.dmg --clobber
+          else
+            gh release create "$TAG" dist/*.dmg --prerelease --target "$GITHUB_SHA" --title "Mac 測試版 $VERSION" --notes "$NOTES"
+          fi

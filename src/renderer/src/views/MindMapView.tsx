@@ -40,6 +40,7 @@ import { IconButton } from '../components/IconButton'
 import { relativeDay } from '../dates'
 import { importPdfFile, isPdf, JobList, useImportJobs } from '../importing'
 import { tidyLayout, type LayoutMode } from '../mindLayout'
+import { shortcut } from '../platform'
 import { desk } from '../useDesk'
 import { MARK_COLORS, MarkLayer, marksBounds, PEN_SIZES, useDrawing, useMarks, type Tool } from './MindMarks'
 
@@ -663,7 +664,7 @@ function MapCanvas({
         <IconButton icon={Pencil} label="畫筆" active={tool === 'pen'} onClick={() => setTool('pen')} />
         <IconButton icon={Eraser} label="橡皮擦（擦掉整條筆跡）" active={tool === 'eraser'} onClick={() => setTool('eraser')} />
         <IconButton icon={StickyNote} label="便利貼：在畫布上點一下放置" active={tool === 'note'} onClick={() => setTool('note')} />
-        <IconButton icon={Undo2} label="復原筆跡與便利貼（Ctrl+Z）" onClick={() => void marks.undo()} />
+        <IconButton icon={Undo2} label={`復原筆跡與便利貼（${shortcut('Z')}）`} onClick={() => void marks.undo()} />
         {tool === 'pen' && (
           <span className="mm-pen-opts" role="group" aria-label="畫筆設定">
             {MARK_COLORS.map((c) => (

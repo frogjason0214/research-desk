@@ -22,6 +22,8 @@ const SIDEBAR_COLLAPSED = 28
 const COLLAPSE_DELAY_MS = 700 // 滑鼠離開多久後收合
 const CURSOR_POLL_MS = 50
 const SYNC_INTERVAL_MS = 20 * 1000
+/** Mac 版目前只存本機：不開跨電腦同步，也不建 Windows 捷徑 */
+const IS_MAC = process.platform === 'darwin'
 
 let sidebar: BrowserWindow | null = null
 let full: BrowserWindow | null = null
@@ -123,6 +125,8 @@ function createSidebar(): void {
     webPreferences: webPreferences()
   })
   sidebar.setAlwaysOnTop(true, 'floating')
+  // Mac：切換桌面或其他 App 全螢幕時也看得到邊欄
+  if (IS_MAC) sidebar.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   sidebar.setIgnoreMouseEvents(true)
   sidebar.once('ready-to-show', () => sidebar?.showInactive())
   sidebar.on('closed', () => (sidebar = null))
@@ -167,6 +171,7 @@ function broadcastChanged(): void {
 function status(): AppStatus {
   return {
     sync: {
+      supported: !IS_MAC,
       enabled: !!library.cloudDir,
       dir: library.cloudDir,
       available: library.available,
@@ -295,6 +300,7 @@ function registerIpc(): void {
       return result.canceled ? null : (result.filePaths[0] ?? null)
     },
     'sync.enable': async (folder: string, choice?: AttachChoice): Promise<AttachResult> => {
+      if (IS_MAC) throw new Error('Mac 版目前只存在這台電腦，不支援跨電腦同步。')
       // 使用者選雲端硬碟的根目錄時，在裡面建立 ResearchDesk 子資料夾
       const dir = path.basename(folder) === LIBRARY_FOLDER ? folder : path.join(folder, LIBRARY_FOLDER)
       const result = await library.attach(dir, choice)
@@ -357,13 +363,15 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
   app.on('second-instance', () => openFull())
+  // Mac：點 Dock 圖示時打開完整視窗
+  app.on('activate', () => openFull())
 
   app.whenReady().then(async () => {
     config = loadConfig()
 
     // 資料一律先存在這台電腦；開啟同步後再和雲端資料夾交換
     library = new Library(path.join(app.getPath('userData'), 'library'), config.deviceId)
-    if (config.syncDir) await library.connect(config.syncDir)
+    if (config.syncDir && !IS_MAC) await library.connect(config.syncDir)
 
     store = new Store(library)
     await store.open()
@@ -381,6 +389,7 @@ if (!app.requestSingleInstanceLock()) {
     })
     // 文獻檔案依心智圖節點整理；資料變動後幾秒執行一次
     const organizer = new Organizer(store, library, (link, target) => {
+      if (process.platform !== 'win32') return // 捷徑（.lnk）只有 Windows 有
       try {
         if (shell.readShortcutLink(link).target === target) return // 已經是對的就不重寫，避免雲端硬碟一直同步
       } catch {

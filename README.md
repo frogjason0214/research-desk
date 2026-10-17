@@ -9,6 +9,15 @@
 3. 之後有新版本時，程式會自動在背景下載，提示「重新啟動」即可更新。
 4. 要使用 Google 行事曆，請先把你的 Gmail 告訴開發者，加入測試使用者名單。
 
+## Mac 測試版
+
+- 到 Releases 找「Mac 測試版」（預先發行版）：Apple 晶片（M1 以後）下載 `…-mac-arm64.dmg`，Intel Mac 下載 `…-mac-x64.dmg`。
+- 沒有 Apple 簽章：第一次打開時在 Finder 對程式按右鍵 →「打開」；被擋下時到「系統設定 → 隱私權與安全性」最下面按「強制打開」。
+- 只存在這台電腦，不支援跨電腦同步；Windows 與 Mac 的資料各自獨立（Google 行事曆兩邊都能用）。
+- 不會自動更新，新版請到 Releases 下載。
+- 一篇文獻連到多個節點時，Mac 只在第一個節點的資料夾放檔案，其他節點不放捷徑。
+- 建置：`.github/workflows/mac.yml` 在每次 Windows 版發布（`v*` 標籤）時自動執行，也可以在 GitHub 的 Actions 頁面手動執行。Google 行事曆的用戶端放在 repo 的 Secrets（`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`）。
+
 ## 發布新版本（開發者）
 
 1. 把 `package.json` 的 `version` 往上加（例如 0.1.0 → 0.2.0），commit 並 push。

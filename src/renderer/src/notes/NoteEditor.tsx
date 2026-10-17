@@ -37,6 +37,7 @@ import type { Focus, NoteBlock, NoteBlockChanges, Paper } from '../../../shared/
 import { IconButton } from '../components/IconButton'
 import { errorText } from '../importing'
 import { desk } from '../useDesk'
+import { shortcut } from '../platform'
 import { BlockId } from './blockIds'
 import { suggestionRender, SuggestionMenu, useMenuController, type MenuController, type MenuItem } from './SuggestionMenu'
 
@@ -326,8 +327,8 @@ export function NoteEditor({
   return (
     <div className="note-editor">
       <div className="note-toolbar" role="toolbar" aria-label="格式">
-        {tool(Bold, '粗體（Ctrl+B）', editor.isActive('bold'), () => chain().toggleBold().run())}
-        {tool(Italic, '斜體（Ctrl+I）', editor.isActive('italic'), () => chain().toggleItalic().run())}
+        {tool(Bold, `粗體（${shortcut('B')}）`, editor.isActive('bold'), () => chain().toggleBold().run())}
+        {tool(Italic, `斜體（${shortcut('I')}）`, editor.isActive('italic'), () => chain().toggleItalic().run())}
         <span className="note-toolbar-sep" />
         {tool(Heading1, '大標題', editor.isActive('heading', { level: 1 }), () => chain().toggleHeading({ level: 1 }).run())}
         {tool(Heading2, '中標題', editor.isActive('heading', { level: 2 }), () => chain().toggleHeading({ level: 2 }).run())}

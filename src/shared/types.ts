@@ -27,6 +27,8 @@ export interface Task {
 }
 
 export interface SyncStatus {
+  /** Mac 版目前只存在本機，不支援跨電腦同步 */
+  supported: boolean
   enabled: boolean
   /** 雲端資料夾（…\ResearchDesk） */
   dir: string | null
@@ -381,7 +383,8 @@ export interface SidebarLayout {
 
 export interface UpdateStatus {
   /** dev：開發模式不檢查；latest：已是最新版；ready：新版已下載，重新啟動即可更新 */
-  state: 'dev' | 'idle' | 'checking' | 'latest' | 'downloading' | 'ready' | 'error'
+  /** manual：Mac 測試版沒有簽章，不能自動更新，要到 GitHub 下載 */
+  state: 'dev' | 'manual' | 'idle' | 'checking' | 'latest' | 'downloading' | 'ready' | 'error'
   version?: string
   progress?: number
   error?: string

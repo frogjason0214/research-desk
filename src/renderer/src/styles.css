@@ -10,8 +10,8 @@
   --warn: #a8611a;
   --warn-soft: #fbf0e3;
   --danger: #b03a3a;
-  --font: 'Segoe UI Variable Text', 'Microsoft JhengHei UI', 'Microsoft JhengHei', 'Noto Sans TC', sans-serif;
-  --font-display: 'Segoe UI Variable Display', 'Segoe UI', 'Microsoft JhengHei UI', sans-serif;
+  --font: 'Segoe UI Variable Text', 'Microsoft JhengHei UI', 'Microsoft JhengHei', -apple-system, 'PingFang TC', 'Noto Sans TC', sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI', 'Microsoft JhengHei UI', -apple-system, 'PingFang TC', sans-serif;
   color-scheme: light;
 }
 

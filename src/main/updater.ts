@@ -8,13 +8,15 @@ import type { UpdateStatus } from '../shared/types'
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000
 
 export function createUpdater(opts: { onChange: () => void; beforeInstall: () => Promise<void> }) {
-  let status: UpdateStatus = { state: app.isPackaged ? 'idle' : 'dev' }
+  // Mac 測試版沒有 Apple 簽章，Mac 的自動更新只接受簽章過的程式
+  const supported = app.isPackaged && process.platform === 'win32'
+  let status: UpdateStatus = { state: !app.isPackaged ? 'dev' : supported ? 'idle' : 'manual' }
   const set = (next: UpdateStatus): void => {
     status = next
     opts.onChange()
   }
 
-  if (app.isPackaged) {
+  if (supported) {
     autoUpdater.autoDownload = true
     autoUpdater.autoInstallOnAppQuit = true
     autoUpdater.on('checking-for-update', () => set({ state: 'checking' }))
@@ -34,7 +36,7 @@ export function createUpdater(opts: { onChange: () => void; beforeInstall: () =>
   return {
     status: () => status,
     check: async (): Promise<void> => {
-      if (!app.isPackaged) return
+      if (!supported) return
       await autoUpdater.checkForUpdates()
     },
     install: async (): Promise<void> => {

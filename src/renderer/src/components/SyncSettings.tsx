@@ -39,6 +39,18 @@ export function SyncSettings({ status, run }: { status: AppStatus; run: Run }) {
       if (folder) await enable(folder)
     })
 
+  if (!sync.supported) {
+    return (
+      <section>
+        <h3>資料存放位置</h3>
+        <p>Mac 版目前只把資料存在這台電腦，不支援跨電腦同步。</p>
+        <button className="btn" onClick={() => desk.settings.openDataDir()}>
+          開啟資料夾
+        </button>
+      </section>
+    )
+  }
+
   if (pending) {
     return (
       <section>
