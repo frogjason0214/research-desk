@@ -60,11 +60,11 @@ function enDate(b: Bib): string {
   return `${y}, ${MONTHS[Number(m) - 1]}${d ? ` ${Number(d)}` : ''}`
 }
 
-export function apaCitation(b: Bib, kind: 'pdf' | 'web', lang: 'en' | 'zh'): Citation {
+export function apaCitation(b: Bib, kind: 'pdf' | 'web' | 'ref', lang: 'en' | 'zh'): Citation {
   return lang === 'zh' ? zhCitation(b, kind) : enCitation(b, kind)
 }
 
-function enCitation(b: Bib, kind: 'pdf' | 'web'): Citation {
+function enCitation(b: Bib, kind: 'pdf' | 'web' | 'ref'): Citation {
   const authors = enAuthors(b.authors)
   const link = doiUrl(b.doi) || (kind === 'web' ? b.url : '')
 
@@ -96,7 +96,7 @@ function enCitation(b: Bib, kind: 'pdf' | 'web'): Citation {
   return { text: parts.filter(Boolean).join(' '), html: htmlParts.filter(Boolean).join(' ') }
 }
 
-function zhCitation(b: Bib, kind: 'pdf' | 'web'): Citation {
+function zhCitation(b: Bib, kind: 'pdf' | 'web' | 'ref'): Citation {
   const authors = zhAuthors(b.authors)
   const link = doiUrl(b.doi) || (kind === 'web' ? b.url : '')
   const year = `（${(b.date || b.year).replace(/-/g, '/') || '無日期'}）`

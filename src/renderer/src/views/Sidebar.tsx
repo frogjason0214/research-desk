@@ -4,6 +4,7 @@ import { AddTask } from '../components/AddTask'
 import { ErrorBanner, GoogleBanner, SyncBanner, UpdateBanner } from '../components/Banners'
 import { Countdown } from '../components/Countdown'
 import { CreateProject } from '../components/CreateProject'
+import { DailyTip } from '../components/DailyTip'
 import { TaskRow } from '../components/TaskRow'
 import { addDays, daysBetween, todayStr } from '../dates'
 import { desk, useDesk, useRun } from '../useDesk'
@@ -176,10 +177,7 @@ export function Sidebar() {
                   <>
                     <Countdown milestones={state.milestones} onSetDate={() => desk.window.openFull()} />
 
-                    <section className="advice" aria-label="AI 本日建議">
-                      <h3>AI 本日建議</h3>
-                      <p className="muted">AI 教授會在第四階段加入，屆時每天在這裡給你一則研究方向、方法或口試式的提問。</p>
-                    </section>
+                    <DailyTip projectId={state.projectId} expanded={expanded} />
 
                     <TodayTasks
                       tasks={state.tasks}

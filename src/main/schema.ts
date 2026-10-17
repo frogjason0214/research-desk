@@ -29,6 +29,17 @@ export const TABLES: Record<string, { fields: string[]; required: string[] }> = 
     fields: ['map_id', 'parent_id', 'text', 'x', 'y', 'collapsed', 'color', 'created_at'],
     required: ['map_id']
   },
+  conversations: {
+    fields: ['project_id', 'title', 'role', 'created_at', 'updated_at'],
+    required: ['project_id', 'role']
+  },
+  // sources 存成 JSON：回答引用到的文獻段落
+  messages: {
+    fields: ['conversation_id', 'role', 'text', 'sources', 'created_at'],
+    required: ['conversation_id', 'role']
+  },
+  // 每日建議：ID 是「專案:日期」，兩台電腦共用同一則
+  daily_tips: { fields: ['project_id', 'date', 'role', 'text', 'sources', 'created_at'], required: ['project_id', 'date'] },
   // 節點、文獻、待辦之間的連結；ID 由兩端組成，兩台電腦同時加同一條連結也只有一筆
   links: { fields: ['a_type', 'a_id', 'b_type', 'b_id'], required: ['a_type', 'a_id', 'b_type', 'b_id'] }
 }
@@ -63,6 +74,10 @@ CREATE TABLE mm_nodes (
 );
 CREATE INDEX idx_nodes_map ON mm_nodes(map_id);
 CREATE TABLE links (id TEXT PRIMARY KEY, a_type TEXT, a_id TEXT, b_type TEXT, b_id TEXT);
+CREATE TABLE conversations (id TEXT PRIMARY KEY, project_id TEXT, title TEXT DEFAULT '', role TEXT, created_at TEXT, updated_at TEXT);
+CREATE TABLE messages (id TEXT PRIMARY KEY, conversation_id TEXT, role TEXT, text TEXT DEFAULT '', sources TEXT DEFAULT '[]', created_at TEXT);
+CREATE INDEX idx_messages_conv ON messages(conversation_id);
+CREATE TABLE daily_tips (id TEXT PRIMARY KEY, project_id TEXT, date TEXT, role TEXT, text TEXT DEFAULT '', sources TEXT DEFAULT '[]', created_at TEXT);
 CREATE INDEX idx_links_a ON links(a_id);
 CREATE INDEX idx_links_b ON links(b_id);
 CREATE INDEX idx_milestones_project ON milestones(project_id);

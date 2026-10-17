@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import type { Author, Bib, Paper, PaperPatch, PdfImport } from '../../shared/types'
+import type { Author, Bib, Paper, PaperPatch, PdfImport, Recommendation } from '../../shared/types'
 import type { Gemini } from '../ai/gemini'
 import type { Library } from '../library'
 import type { Store } from '../store'
@@ -129,7 +129,8 @@ export function createPapers(opts: {
     let c = chunkCache.get(id)
     if (!c) {
       const text = readText(id)
-      c = chunkPages(kind === 'web' ? [text] : text.split('\f'), kind === 'web')
+      // 只有 PDF 有頁碼；網頁與摘要整篇當一頁（頁碼記為 0）
+      c = chunkPages(kind === 'pdf' ? text.split('\f') : [text], kind !== 'pdf')
       chunkCache.set(id, c)
     }
     return c
@@ -220,6 +221,28 @@ export function createPapers(opts: {
         return id
       },
 
+      /** 從推薦加入：只有書目與摘要（沒有 PDF），之後下載 PDF 可以再匯入 */
+      'papers.importDoi': async (projectId: string, rec: Recommendation): Promise<string> => {
+        const id = randomUUID()
+        const bib = await crossrefByDoi(rec.doi).catch(() => null)
+        if (rec.abstract) library.writeFile(fileOf(id, 'txt'), `${rec.title}\n\n${rec.abstract}`)
+        store.write((tx) =>
+          tx.set('papers', id, {
+            ...base(projectId, 'ref', false),
+            lang: detectLang(rec.title),
+            text_status: rec.abstract ? 'ok' : 'empty',
+            title: rec.title,
+            year: rec.year,
+            journal: rec.venue,
+            doi: rec.doi,
+            url: rec.url,
+            ...(bib ? { ...nonEmpty(bib), bib_status: 'ok' } : {})
+          })
+        )
+        void enrich(id, rec.abstract)
+        return id
+      },
+
       'papers.update': (id: string, patch: PaperPatch): void => {
         const { authors, ...rest } = patch
         const fields: Record<string, unknown> = { ...rest }
@@ -255,6 +278,11 @@ export function createPapers(opts: {
       'papers.open': async (id: string, which: 'file' | 'page'): Promise<void> => {
         const p = row(id)
         if (!p) return
+        if (p.kind === 'ref') {
+          // 只有書目的文獻：開 DOI 連結
+          if (p.url) await shell.openExternal(p.url)
+          return
+        }
         const rel = p.kind === 'pdf' ? fileOf(id, 'pdf') : fileOf(id, which === 'page' ? 'mhtml' : 'html')
         const file = library.resolveFile(rel)
         if (!file) throw new Error('找不到檔案。如果剛在另一台電腦匯入，請等雲端硬碟同步完成。')

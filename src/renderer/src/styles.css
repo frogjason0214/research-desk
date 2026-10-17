@@ -1618,3 +1618,237 @@ a.btn {
 .mm-panel .mm-panel-title {
   margin-right: 28px;
 }
+
+/* ---------- AI 教授 ---------- */
+
+.prof {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 20px;
+  height: calc(100vh - 150px);
+  min-height: 420px;
+}
+.prof-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.prof-list .nav-heading {
+  margin: 8px 0 0;
+}
+.prof-main {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.prof-new {
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.role-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.role-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  padding: 16px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--panel);
+  cursor: pointer;
+}
+.role-card:hover {
+  border-color: var(--accent);
+}
+.role-card strong {
+  font-size: 15px;
+}
+.role-card span {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.chat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chat-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 4px 12px;
+}
+.chat-empty {
+  margin: 24px auto;
+  max-width: 420px;
+  text-align: center;
+}
+.msg {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.msg.is-user {
+  align-self: flex-end;
+  background: var(--accent-soft);
+}
+.msg.is-model {
+  align-self: flex-start;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+}
+.msg-text {
+  white-space: pre-wrap;
+  margin: 0;
+}
+.chat-input {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+.chat-input textarea {
+  font: inherit;
+  resize: vertical;
+}
+.ai-md > :first-child {
+  margin-top: 0;
+}
+.ai-md > :last-child {
+  margin-bottom: 0;
+}
+.ai-md p,
+.ai-md ul,
+.ai-md ol {
+  margin: 0 0 8px;
+}
+.ai-md ul,
+.ai-md ol {
+  padding-left: 1.4em;
+}
+.ai-md h1,
+.ai-md h2,
+.ai-md h3,
+.ai-md h4 {
+  font-size: 15px;
+  margin: 12px 0 6px;
+}
+.ai-md table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.ai-md th,
+.ai-md td {
+  border: 1px solid var(--rule);
+  padding: 4px 8px;
+}
+.ai-md code {
+  font-size: 12px;
+  background: var(--paper);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.src-chip {
+  border: none;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 5px;
+  margin: 0 1px;
+  border-radius: 4px;
+  cursor: pointer;
+  vertical-align: 1px;
+}
+.src-chip:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.src-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px dashed var(--rule);
+  font-size: 12px;
+}
+.src-list .link-btn {
+  padding: 2px 0;
+  text-align: left;
+  font-size: 12px;
+}
+.src-key {
+  font-weight: 600;
+}
+.recs {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 860px;
+}
+.rec-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rec {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+}
+.rec-title {
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+.rec-title:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.rec-reason {
+  margin: 4px 0;
+  font-size: 13px;
+}
+.rec-doi {
+  font-size: 12px;
+  align-self: center;
+}
+.advice-role {
+  font-weight: normal;
+}
+.advice-text {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.advice .link-btn {
+  padding: 4px 0;
+}

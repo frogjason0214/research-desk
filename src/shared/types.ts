@@ -73,7 +73,8 @@ export interface Bib {
 export interface Paper extends Bib {
   id: string
   project_id: string
-  kind: 'pdf' | 'web'
+  /** pdf：PDF；web：網頁快照；ref：只有書目與摘要（從推薦加入） */
+  kind: 'pdf' | 'web' | 'ref'
   lang: 'en' | 'zh'
   /** ok：書目已確認；pending：待確認（AI 判讀或還沒有書目） */
   bib_status: 'ok' | 'pending'
@@ -140,6 +141,9 @@ export interface AiStatus {
   model: string
   /** 匯入文獻時自動使用 AI（這台電腦的設定） */
   autoFill: boolean
+  /** 每天第一次展開邊欄時產生每日建議 */
+  daily: boolean
+  hasOpenAlexKey: boolean
 }
 
 /** 心理學研究類型（AI 預填也從這裡選） */
@@ -197,8 +201,80 @@ export interface TaskLinks {
   papers: PaperRef[]
 }
 
-/** 跨頁面跳轉：從文獻跳到節點、從節點跳到文獻 */
-export type Focus = { page: 'literature'; paperId: string } | { page: 'mindmap'; mapId: string; nodeId: string }
+/** 跨頁面跳轉：從文獻跳到節點、從節點跳到文獻、從每日建議跳到對話 */
+export type Focus =
+  | { page: 'literature'; paperId: string }
+  | { page: 'mindmap'; mapId: string; nodeId: string }
+  | { page: 'professor'; conversationId: string }
+
+// ---------- AI 教授 ----------
+
+/** direction：研究方向與缺口；methods：研究方法與統計；committee：模擬口試委員；general：一般討論 */
+export type ProfessorRole = 'direction' | 'methods' | 'committee' | 'general'
+
+export const ROLE_LABELS: Record<ProfessorRole, string> = {
+  direction: '研究方向與缺口',
+  methods: '研究方法與統計',
+  committee: '模擬口試委員',
+  general: '一般討論'
+}
+
+/** 回答引用的來源：S＝文獻段落，P＝文獻整體（書目與欄位） */
+export interface Source {
+  key: string
+  paperId: string
+  title: string
+  year: string
+  page: number
+}
+
+export interface Conversation {
+  id: string
+  project_id: string
+  title: string
+  role: ProfessorRole
+  created_at: string
+  updated_at: string
+}
+
+export interface ChatMessage {
+  id: string
+  conversation_id: string
+  role: 'user' | 'model'
+  text: string
+  sources: Source[]
+  created_at: string
+}
+
+export interface DailyTip {
+  date: string
+  role: ProfessorRole
+  text: string
+  sources: Source[]
+}
+
+/** 推薦的新文獻：一定是在 OpenAlex 查得到、有 DOI 的論文 */
+export interface Recommendation {
+  doi: string
+  title: string
+  year: string
+  authors: string
+  venue: string
+  citedBy: number
+  url: string
+  abstract: string
+  /** AI 寫的推薦理由 */
+  reason: string
+  /** 已經在文獻庫裡 */
+  inLibrary: boolean
+}
+
+export interface AiStream {
+  conversationId: string
+  /** 目前為止的完整回覆 */
+  text: string
+  done: boolean
+}
 
 // ---------- Google 行事曆 ----------
 
@@ -317,6 +393,8 @@ export interface DeskApi {
     list(projectId: string): Promise<Paper[]>
     importPdf(projectId: string, file: PdfImport): Promise<string>
     importWeb(projectId: string, url: string, noAi: boolean): Promise<string>
+    /** 從推薦加入：只有書目與摘要 */
+    importDoi(projectId: string, rec: Recommendation): Promise<string>
     update(id: string, patch: PaperPatch): Promise<void>
     confirmBib(id: string): Promise<void>
     lookupDoi(id: string, doi: string): Promise<void>
@@ -357,6 +435,22 @@ export interface DeskApi {
     setKey(key: string): Promise<void>
     clearKey(): Promise<void>
     setAutoFill(on: boolean): Promise<void>
+    setDaily(on: boolean): Promise<void>
+    setOpenAlexKey(key: string): Promise<void>
+  }
+  professor: {
+    conversations(projectId: string): Promise<Conversation[]>
+    create(projectId: string, role: ProfessorRole): Promise<Conversation>
+    rename(id: string, title: string): Promise<void>
+    remove(id: string): Promise<void>
+    messages(conversationId: string): Promise<ChatMessage[]>
+    /** 回覆透過 onAiStream 逐步送來；完成後存進對話紀錄 */
+    send(conversationId: string, text: string): Promise<void>
+    /** 今天的建議；還沒有就產生（沒有金鑰或關閉時回傳 null） */
+    daily(projectId: string): Promise<DailyTip | null>
+    /** 從今天的建議開一個對話，回傳對話 ID */
+    startFromTip(projectId: string): Promise<string>
+    recommend(projectId: string): Promise<Recommendation[]>
   }
   google: {
     signIn(): Promise<void>
@@ -383,13 +477,16 @@ export interface DeskApi {
     /** 告訴主程式面板目前的範圍，用來判斷滑鼠在不在邊欄上 */
     setSidebarLayout(layout: SidebarLayout): Promise<void>
     saveSidebarTop(ratio: number): Promise<void>
-    openFull(): Promise<void>
+    openFull(focus?: Focus): Promise<void>
     closeFull(): Promise<void>
     quit(): Promise<void>
   }
   /** 主程式偵測到滑鼠移到細條上（enter），或離開邊欄一段時間（leave） */
   onSidebarHover(callback: (event: 'enter' | 'leave') => void): () => void
   onChanged(callback: () => void): () => void
+  onAiStream(callback: (s: AiStream) => void): () => void
+  /** 其他視窗要求完整視窗跳到某一頁 */
+  onNavigate(callback: (f: Focus) => void): () => void
 }
 
 // 心理學碩士論文里程碑範本

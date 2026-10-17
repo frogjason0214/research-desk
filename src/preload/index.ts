@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { DeskApi } from '../shared/types'
+import type { AiStream, DeskApi, Focus } from '../shared/types'
 
 // 畫面只能透過這個橋接物件存取資料，無法直接碰到檔案系統
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,6 +39,7 @@ const api: DeskApi = {
     list: call('papers.list'),
     importPdf: call('papers.importPdf'),
     importWeb: call('papers.importWeb'),
+    importDoi: call('papers.importDoi'),
     update: call('papers.update'),
     confirmBib: call('papers.confirmBib'),
     lookupDoi: call('papers.lookupDoi'),
@@ -75,7 +76,20 @@ const api: DeskApi = {
     status: call('ai.status'),
     setKey: call('ai.setKey'),
     clearKey: call('ai.clearKey'),
-    setAutoFill: call('ai.setAutoFill')
+    setAutoFill: call('ai.setAutoFill'),
+    setDaily: call('ai.setDaily'),
+    setOpenAlexKey: call('ai.setOpenAlexKey')
+  },
+  professor: {
+    conversations: call('professor.conversations'),
+    create: call('professor.create'),
+    rename: call('professor.rename'),
+    remove: call('professor.remove'),
+    messages: call('professor.messages'),
+    send: call('professor.send'),
+    daily: call('professor.daily'),
+    startFromTip: call('professor.startFromTip'),
+    recommend: call('professor.recommend')
   },
   google: {
     signIn: call('google.signIn'),
@@ -99,7 +113,7 @@ const api: DeskApi = {
   window: {
     setSidebarLayout: (layout) => ipcRenderer.invoke('window:setSidebarLayout', layout),
     saveSidebarTop: (ratio) => ipcRenderer.invoke('window:saveSidebarTop', ratio),
-    openFull: () => ipcRenderer.invoke('window:openFull'),
+    openFull: (focus) => ipcRenderer.invoke('window:openFull', focus),
     closeFull: () => ipcRenderer.invoke('window:closeFull'),
     quit: () => ipcRenderer.invoke('window:quit')
   },
@@ -112,6 +126,16 @@ const api: DeskApi = {
       ipcRenderer.removeListener('sidebar:enter', enter)
       ipcRenderer.removeListener('sidebar:leave', leave)
     }
+  },
+  onAiStream: (callback) => {
+    const handler = (_e: unknown, s: AiStream): void => callback(s)
+    ipcRenderer.on('ai:stream', handler)
+    return () => ipcRenderer.removeListener('ai:stream', handler)
+  },
+  onNavigate: (callback) => {
+    const handler = (_e: unknown, f: Focus): void => callback(f)
+    ipcRenderer.on('desk:navigate', handler)
+    return () => ipcRenderer.removeListener('desk:navigate', handler)
   },
   onChanged: (callback) => {
     const handler = (): void => callback()

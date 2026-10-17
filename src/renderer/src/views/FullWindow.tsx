@@ -13,13 +13,13 @@ import { desk, useDesk, useRun, type DeskState } from '../useDesk'
 import { CalendarView } from './CalendarView'
 import { LiteratureView } from './LiteratureView'
 import { MindMapView } from './MindMapView'
+import { ProfessorView } from './ProfessorView'
 
 type Tab = 'milestones' | 'tasks' | 'settings'
 
-const SOON = ['AI 教授']
 
 /** 主畫面：目前專案的分頁，或跨專案的功能頁 */
-type Page = 'project' | 'literature' | 'mindmap' | 'calendar'
+type Page = 'project' | 'literature' | 'mindmap' | 'professor' | 'calendar'
 
 export function FullWindow() {
   const state = useDesk()
@@ -32,6 +32,8 @@ export function FullWindow() {
     setFocus(f)
     setPage(f.page)
   }
+  // 邊欄（例如每日建議的「繼續討論」）要求跳到某一頁
+  useEffect(() => desk.onNavigate(navigate), [])
   const [newProject, setNewProject] = useState('')
 
   if (!state) return null
@@ -84,6 +86,7 @@ export function FullWindow() {
             [
               ['literature', '文獻'],
               ['mindmap', '心智圖'],
+              ['professor', 'AI 教授'],
               ['calendar', '行事曆']
             ] as [Page, string][]
           ).map(([key, label]) => (
@@ -97,15 +100,6 @@ export function FullWindow() {
               >
                 {label}
               </button>
-            </li>
-          ))}
-        </ul>
-
-        <h2 className="nav-heading">即將推出</h2>
-        <ul className="nav-list">
-          {SOON.map((s) => (
-            <li key={s}>
-              <span className="nav-item is-disabled">{s}</span>
             </li>
           ))}
         </ul>
@@ -133,6 +127,18 @@ export function FullWindow() {
               tasks={state.tasks}
               run={run}
               focusPaperId={focus?.page === 'literature' ? focus.paperId : null}
+              onNavigate={navigate}
+            />
+          </>
+        ) : page === 'professor' && current ? (
+          <>
+            <header className="main-head">
+              <h2 className="project-name">{current.name}・AI 教授</h2>
+            </header>
+            <ProfessorView
+              projectId={current.id}
+              run={run}
+              focusConversationId={focus?.page === 'professor' ? focus.conversationId : null}
               onNavigate={navigate}
             />
           </>

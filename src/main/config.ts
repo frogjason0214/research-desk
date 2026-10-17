@@ -16,6 +16,10 @@ export interface LocalConfig {
   researchCalendarId?: string
   /** 匯入文獻時自動使用 AI（預設開啟） */
   aiAutoFill?: boolean
+  /** 每天第一次展開邊欄時產生 AI 每日建議（預設開啟） */
+  aiDaily?: boolean
+  /** OpenAlex 免費金鑰（選填），推薦新文獻的查詢額度較多 */
+  openAlexKey?: string
   /** 舊版設定：使用者選的資料夾，啟動時會轉成 syncDir */
   dataDir?: string
 }

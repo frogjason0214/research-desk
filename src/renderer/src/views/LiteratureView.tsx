@@ -206,6 +206,7 @@ export function LiteratureView({
                   </span>
                   <span className="lit-badges">
                     {p.kind === 'web' && <span className="badge">網頁</span>}
+                    {p.kind === 'ref' && <span className="badge">只有書目</span>}
                     {p.busy ? <span className="badge is-busy">處理中</span> : null}
                     {p.bib_status === 'pending' && !p.busy && <span className="badge is-warn">待確認</span>}
                     {p.no_ai ? <span className="badge">不送 AI</span> : null}
@@ -408,7 +409,7 @@ function PaperDetail({
         <h2>{p.title || '（沒有標題）'}</h2>
         <div className="btn-row">
           <button className="btn" onClick={() => run(() => desk.papers.open(p.id, 'file'))}>
-            {p.kind === 'pdf' ? '開啟 PDF' : '開啟正文快照'}
+            {p.kind === 'pdf' ? '開啟 PDF' : p.kind === 'ref' ? '開啟 DOI 連結' : '開啟正文快照'}
           </button>
           {p.kind === 'web' && (
             <button className="btn" onClick={() => run(() => desk.papers.open(p.id, 'page'))}>
@@ -430,7 +431,8 @@ function PaperDetail({
         </div>
         {p.busy ? <p className="banner banner-info">正在查詢書目與整理欄位…</p> : null}
         {p.error && !p.busy ? <p className="banner banner-warn">{p.error}</p> : null}
-        {p.text_status === 'empty' && (
+        {p.kind === 'ref' && <p className="muted">這篇是從推薦加入的，只有書目與摘要。下載 PDF 後用「匯入 PDF」可以取得全文。</p>}
+        {p.text_status === 'empty' && p.kind !== 'ref' && (
           <p className="muted">這份{p.kind === 'pdf' ? ' PDF 沒有文字層（可能是掃描檔）' : '網頁抓不到正文'}，全文搜尋與 AI 引用內文無法使用。</p>
         )}
       </header>

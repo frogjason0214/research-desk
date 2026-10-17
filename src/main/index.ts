@@ -1,7 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { AiStatus, AppStatus, SidebarLayout } from '../shared/types'
+import type { AiStatus, AppStatus, Focus, SidebarLayout } from '../shared/types'
+import { createProfessor } from './ai/professor'
 import { Gemini, GEMINI_MODEL } from './ai/gemini'
 import { createPapers } from './papers'
 import { detectCloudFolders } from './cloud'
@@ -28,6 +29,7 @@ let google: ReturnType<typeof createGoogle>
 let updater: ReturnType<typeof createUpdater>
 let gemini: Gemini
 let papers: ReturnType<typeof createPapers>
+let professor: ReturnType<typeof createProfessor>
 let flushed = false
 
 /** 結束前把還沒上傳的修改寫進雲端資料夾 */
@@ -124,10 +126,12 @@ function createSidebar(): void {
   loadView(sidebar, 'sidebar')
 }
 
-function openFull(): void {
+/** 開啟完整視窗；給 focus 時跳到指定的頁面（例如從邊欄的每日建議跳到對話） */
+function openFull(focus?: Focus): void {
   if (full) {
     full.show()
     full.focus()
+    if (focus) full.webContents.send('desk:navigate', focus)
     return
   }
   full = new BrowserWindow({
@@ -141,6 +145,7 @@ function openFull(): void {
     webPreferences: webPreferences()
   })
   full.once('ready-to-show', () => full?.show())
+  if (focus) full.webContents.once('did-finish-load', () => full?.webContents.send('desk:navigate', focus))
   full.on('closed', () => (full = null))
   // 畫面裡的外部連結（例如「在 Google 日曆開啟」）用預設瀏覽器開
   full.webContents.setWindowOpenHandler(({ url }) => {
@@ -192,6 +197,10 @@ function registerIpc(): void {
         papers.handlers['papers.remove'](p.id)
       for (const m of store.all<{ id: string }>('SELECT id FROM mindmaps WHERE project_id = ?', [id]))
         mindmaps['mindmaps.remove'](m.id)
+      for (const c of store.all<{ id: string }>('SELECT id FROM conversations WHERE project_id = ?', [id]))
+        professor.handlers['professor.remove'](c.id)
+      const tips = store.all<{ id: string }>('SELECT id FROM daily_tips WHERE project_id = ?', [id])
+      if (tips.length) store.write((tx) => tips.forEach((t) => tx.remove('daily_tips', t.id)))
       return (data['projects.remove'] as (id: string) => void)(id)
     },
     'mindmaps.saveImage': async (name: string, dataUrl: string): Promise<boolean> => {
@@ -207,7 +216,22 @@ function registerIpc(): void {
       if (!testPath) shell.showItemInFolder(result.filePath)
       return true
     },
-    'ai.status': (): AiStatus => ({ hasKey: gemini.hasKey, model: GEMINI_MODEL, autoFill: config.aiAutoFill ?? true }),
+    ...(professor.handlers as Record<string, (...args: never[]) => unknown>),
+    'ai.status': (): AiStatus => ({
+      hasKey: gemini.hasKey,
+      model: GEMINI_MODEL,
+      autoFill: config.aiAutoFill ?? true,
+      daily: config.aiDaily ?? true,
+      hasOpenAlexKey: !!config.openAlexKey
+    }),
+    'ai.setDaily': (on: boolean) => {
+      config.aiDaily = on
+      saveConfig(config)
+    },
+    'ai.setOpenAlexKey': (key: string) => {
+      config.openAlexKey = key.trim() || undefined
+      saveConfig(config)
+    },
     'ai.setKey': (key: string) => gemini.setKey(key),
     'ai.clearKey': () => gemini.clearKey(),
     'ai.setAutoFill': (on: boolean) => {
@@ -275,7 +299,7 @@ function registerIpc(): void {
     config.sidebarTop = Math.min(1, Math.max(0, ratio))
     saveConfig(config)
   })
-  ipcMain.handle('window:openFull', () => openFull())
+  ipcMain.handle('window:openFull', (_event, focus?: Focus) => openFull(focus))
   ipcMain.handle('window:closeFull', () => full?.close())
   ipcMain.handle('window:quit', () => app.quit())
 }
@@ -310,6 +334,15 @@ if (!app.requestSingleInstanceLock()) {
       gemini,
       autoFill: () => config.aiAutoFill ?? true,
       onChange: broadcastChanged
+    })
+    professor = createProfessor({
+      store,
+      gemini,
+      search: (projectId, query, limit) => papers.searchForAi(projectId, query, limit),
+      openAlexKey: () => config.openAlexKey,
+      dailyEnabled: () => config.aiDaily ?? true,
+      // 回覆逐步送給所有視窗（邊欄與完整視窗都可能在看）
+      emit: (s) => BrowserWindow.getAllWindows().forEach((w) => w.webContents.send('ai:stream', s))
     })
 
     google = createGoogle({
