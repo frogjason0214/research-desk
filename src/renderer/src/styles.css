@@ -1471,14 +1471,31 @@ a.btn {
   white-space: pre-wrap;
   word-break: break-word;
 }
+/* 節點文字框：跟著內容長寬（打的字一直看得到），選取時看起來就是一般文字 */
 .mm-input {
   font: inherit;
+  line-height: inherit;
   border: none;
   outline: none;
   background: transparent;
   color: inherit;
   padding: 0;
-  min-width: 120px;
+  margin: 0;
+  resize: none;
+  overflow: hidden;
+  field-sizing: content;
+  min-width: 60px;
+  max-width: 236px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.mm-input.is-armed {
+  min-width: 1ch;
+  caret-color: transparent;
+  pointer-events: none;
+}
+.mm-input.is-armed::selection {
+  background: transparent;
 }
 .mm-counts {
   display: inline-flex;

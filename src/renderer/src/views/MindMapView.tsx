@@ -48,26 +48,57 @@ type FlowNode = Node<NodeData, 'mind'>
 
 // ---------- 節點外觀 ----------
 
+/** 這個按鍵會輸入文字（含注音、拼音組字）嗎？ */
+function isTyping(e: React.KeyboardEvent): boolean {
+  if (e.nativeEvent.isComposing || e.keyCode === 229 || e.key === 'Process') return true
+  return e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey
+}
+
 function MindNodeView({ id, data, selected }: NodeProps<FlowNode>) {
-  const input = useRef<HTMLInputElement>(null)
+  const input = useRef<HTMLTextAreaElement>(null)
   // 節點換到中心節點另一邊時，連接點位置改了，要請 React Flow 重新量
   const updateInternals = useUpdateNodeInternals()
   useEffect(() => updateInternals(id), [id, data.side, data.isRoot, updateInternals])
-  // 新節點在量好尺寸前是隱藏的，autoFocus 會失敗；重試到真的拿到焦點為止
+  // 選取的節點有一個看起來像文字的輸入框拿著焦點：直接打字（含中文組字）就開始改名，
+  // 組字直接顯示在節點上。新節點在量好尺寸前是隱藏的，focus 會失敗；重試到拿到焦點為止
+  const armed = selected && !data.editing
+  // 直接打字開始改名時，已經輸入的字不能再被全選
+  const typed = useRef(false)
   useEffect(() => {
-    if (!data.editing) return
+    if (!selected && !data.editing) return
+    if (typed.current) {
+      typed.current = false
+      return
+    }
     let tries = 0
-    let timer: number | undefined
     const tick = (): void => {
       const el = input.current
       if (!el) return
-      el.focus()
+      if (document.activeElement !== el) {
+        // 使用者正在側欄或其他地方輸入時不要搶焦點
+        const active = document.activeElement as HTMLElement | null
+        if (!data.editing && active && active !== document.body && !active.closest('.mm-canvas')) return
+        el.focus()
+      }
       if (document.activeElement === el) el.select()
       else if (tries++ < 30) timer = window.setTimeout(tick, 30)
     }
-    tick()
+    // 等這次點擊或 blur 把焦點移完再判斷
+    let timer = window.setTimeout(tick, 0)
     return () => window.clearTimeout(timer)
-  }, [data.editing])
+  }, [selected, data.editing])
+  const startTyping = (): void => {
+    if (!input.current?.classList.contains('is-armed')) return
+    typed.current = true
+    data.onEdit(id)
+  }
+  // 不在編輯時，其他電腦改了文字要更新
+  useEffect(() => {
+    const el = input.current
+    if (data.editing || !el || el.value === data.text) return
+    el.value = data.text
+    if (document.activeElement === el) el.select()
+  }, [data.text, data.editing])
 
   return (
     <div
@@ -85,17 +116,37 @@ function MindNodeView({ id, data, selected }: NodeProps<FlowNode>) {
           <Handle id="out" type="source" position={data.side === 'left' ? Position.Left : Position.Right} className="mm-handle" isConnectable={false} />
         </>
       )}
-      {data.editing ? (
-        <input
+      {selected || data.editing ? (
+        <textarea
           ref={input}
-          className="mm-input nodrag"
+          className={`mm-input${armed ? ' is-armed' : ' nodrag'}`}
           defaultValue={data.text}
-          onBlur={(e) => data.onRename(id, e.target.value)}
+          rows={1}
+          spellCheck={false}
+          data-armed={armed ? '1' : undefined}
+          onBlur={(e) => data.editing && data.onRename(id, e.target.value)}
           onKeyDown={(e) => {
+            if (armed) {
+              // 打字就開始改名（取代原本的文字）；其他按鍵交給畫布（Tab、Enter、Delete…）
+              if (isTyping(e)) {
+                e.stopPropagation()
+                startTyping()
+              } else if (e.key.startsWith('Arrow')) e.preventDefault()
+              return
+            }
             e.stopPropagation()
-            if (e.key === 'Enter') e.currentTarget.blur()
-            if (e.key === 'Escape') data.onRename(id, null)
+            // 注音／拼音組字時的 Enter 是選字，不是結束編輯
+            if (e.nativeEvent.isComposing || e.keyCode === 229) return
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              e.currentTarget.blur()
+            }
+            if (e.key === 'Escape') {
+              e.currentTarget.value = data.text
+              data.onRename(id, null)
+            }
           }}
+          onCompositionStart={() => armed && startTyping()}
           aria-label="節點文字"
         />
       ) : (
@@ -300,8 +351,7 @@ function MapCanvas({
     (id: string, text: string | null) => {
       setEditing(null)
       const n = nodes.find((x) => x.id === id)
-      if (text !== null && n && text.trim() && text.trim() !== n.text) run(() => desk.nodes.update(id, { text }))
-      wrapper.current?.focus()
+      if (text !== null && n && text.trim() && text.trim() !== n.text) run(() => desk.nodes.update(id, { text: text.trim() }))
     },
     [nodes, run]
   )
@@ -451,7 +501,8 @@ function MapCanvas({
   const onKeyDown = (e: React.KeyboardEvent): void => {
     // 只處理畫布本身的按鍵；側欄裡的輸入框、按鈕不受影響
     const target = e.target as HTMLElement
-    if (editing || !selected || target.tagName === 'INPUT') return
+    const field = target.tagName === 'INPUT' || (target.tagName === 'TEXTAREA' && !target.dataset.armed)
+    if (editing || !selected || field) return
     if (target !== wrapper.current && !target.closest('.react-flow')) return
     const n = nodes.find((x) => x.id === selected)
     if (!n) return
@@ -552,11 +603,17 @@ function MapCanvas({
             onNodeClick={(_, node) => {
               setSelected(node.id)
               setPendingDelete(null)
-              wrapper.current?.focus()
+              // 已經選取的節點再點一次：焦點交回節點的文字框，才能直接打字
+              if (node.id === selected && !editing) {
+                const el = wrapper.current?.querySelector<HTMLTextAreaElement>(`.react-flow__node[data-id="${node.id}"] .mm-input`)
+                el?.focus()
+                el?.select()
+              }
             }}
             onPaneClick={() => {
               setSelected(null)
               setPendingDelete(null)
+              wrapper.current?.focus()
             }}
             onNodeDragStart={(_, node) => {
               // 拖父節點時子孫一起移動：記下起點

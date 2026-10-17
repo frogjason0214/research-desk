@@ -54,6 +54,8 @@ export function EditableTitle({
       onFocus={(e) => e.target.select()}
       onBlur={(e) => finish(e.target, true)}
       onKeyDown={(e) => {
+        // 注音／拼音組字時的 Enter 是選字
+        if (e.nativeEvent.isComposing || e.keyCode === 229) return
         if (e.key === 'Enter') e.currentTarget.blur()
         if (e.key === 'Escape') finish(e.currentTarget, false)
       }}

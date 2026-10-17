@@ -40,7 +40,7 @@ export function TaskRow({ task, onToggle, editable, onRename, onDate, onRemove, 
           className="task-title-input"
           defaultValue={task.title}
           onBlur={(e) => e.target.value.trim() !== task.title && onRename?.(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229 && (e.target as HTMLInputElement).blur()}
           aria-label="任務名稱"
         />
       ) : (
