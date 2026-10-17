@@ -1,6 +1,6 @@
 import type { CalendarEvent, CalendarInfo, EventInput } from '../../shared/types'
 import type { GoogleAuth } from './auth'
-import { GoogleApiError } from './errors'
+import { GoogleApiError, MISSING_SCOPE_MESSAGE } from './errors'
 
 // Google Calendar REST API（直接用 fetch，不引入龐大的 googleapis 套件）
 
@@ -47,6 +47,11 @@ export class CalendarApi {
     const res = await this.auth.fetch(`${API}${path}`, init)
     if (res.status === 204) return undefined as T
     const data = await res.json().catch(() => ({}))
+    if (res.status === 403 && /insufficient.*scope/i.test(data.error?.message ?? '')) {
+      // 這次登入沒有行事曆權限：登出，讓使用者重新登入並勾選
+      this.auth.signOut()
+      throw new Error(MISSING_SCOPE_MESSAGE)
+    }
     if (!res.ok) throw new GoogleApiError(res.status, `Google 行事曆錯誤（${res.status}）：${data.error?.message ?? ''}`)
     return data as T
   }

@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { GoogleStatus } from '../../shared/types'
-import { AuthExpiredError } from './errors'
+import { AuthExpiredError, MISSING_SCOPE_MESSAGE } from './errors'
 
 // Google 登入：桌面應用程式的標準流程（瀏覽器登入 → 導回本機 127.0.0.1 → 以 PKCE 換取權杖）。
 // 權杖只存在這台電腦，用 Windows 的 DPAPI（safeStorage）加密，不放雲端資料夾。
@@ -13,7 +13,8 @@ import { AuthExpiredError } from './errors'
 const CLIENT_ID = import.meta.env.MAIN_VITE_GOOGLE_CLIENT_ID ?? ''
 // 桌面應用程式的 client secret 依 Google 文件不視為機密，但仍放在 .env，不進版本控制
 const CLIENT_SECRET = import.meta.env.MAIN_VITE_GOOGLE_CLIENT_SECRET ?? ''
-const SCOPES = ['openid', 'email', 'https://www.googleapis.com/auth/calendar']
+const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar'
+const SCOPES = ['openid', 'email', CALENDAR_SCOPE]
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000
 
 interface Tokens {
@@ -139,6 +140,13 @@ export class GoogleAuth {
       redirect_uri: redirectUri,
       code_verifier: verifier
     })
+    // Google 的同意畫面可以只勾部分權限；沒勾行事曆就無法使用，不要存下這次登入
+    if (!data.scope?.split(' ').includes(CALENDAR_SCOPE)) {
+      fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(data.access_token)}`, { method: 'POST' }).catch(
+        () => {}
+      )
+      throw new Error(MISSING_SCOPE_MESSAGE)
+    }
     this.tokens = {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
@@ -196,7 +204,7 @@ export class GoogleAuth {
       if (data.error === 'invalid_grant') throw new AuthExpiredError()
       throw new Error(`Google 登入錯誤：${data.error_description ?? data.error ?? res.status}`)
     }
-    return data as { access_token: string; refresh_token: string; expires_in: number; id_token?: string }
+    return data as { access_token: string; refresh_token: string; expires_in: number; id_token?: string; scope?: string }
   }
 
   /** 呼叫 Google API；權杖被拒時更新一次再試 */
