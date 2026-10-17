@@ -1,7 +1,7 @@
 {
   "name": "research-desk",
   "productName": "Research Desk",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "心理學研究輔助桌面工具",
   "main": "./out/main/index.js",
   "scripts": {
@@ -29,6 +29,7 @@
     "@tiptap/starter-kit": "2.27.3",
     "@tiptap/suggestion": "2.27.3",
     "@types/d3-hierarchy": "3.1.7",
+    "@types/markdown-it": "14.1.2",
     "@types/node": "20.17.6",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
@@ -41,6 +42,7 @@
     "electron-vite": "2.3.0",
     "html-to-image": "1.11.11",
     "lucide-react": "0.577.0",
+    "markdown-it": "14.3.3",
     "pdfjs-dist": "4.10.38",
     "react": "18.3.1",
     "react-dom": "18.3.1",

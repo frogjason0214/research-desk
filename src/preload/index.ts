@@ -74,7 +74,10 @@ const api: DeskApi = {
     purge: call('notes.purge'),
     blocks: call('notes.blocks'),
     saveBlocks: call('notes.saveBlocks'),
-    saveImage: call('notes.saveImage')
+    saveImage: call('notes.saveImage'),
+    exportMd: call('notes.exportMd'),
+    pickMd: call('notes.pickMd'),
+    importPage: call('notes.importPage')
   },
   marks: {
     list: call('marks.list'),

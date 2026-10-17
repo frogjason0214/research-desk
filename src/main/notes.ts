@@ -27,6 +27,16 @@ export const IMAGE_SCHEME = 'desk-note'
 
 const now = (): string => new Date().toISOString()
 
+/** desk-note:附件/x.png → 附件/x.png（Markdown 轉換過的位址會被編碼成 %E9…，要解回來）；不是程式內的圖片回傳 null */
+export function noteImagePath(src: string): string | null {
+  if (!src.startsWith(`${IMAGE_SCHEME}:`)) return null
+  try {
+    return decodeURIComponent(src.slice(IMAGE_SCHEME.length + 1))
+  } catch {
+    return null
+  }
+}
+
 export function imageType(file: string): string | null {
   return IMAGE_TYPES[path.extname(file).toLowerCase()] ?? null
 }
@@ -127,6 +137,73 @@ export function createNotesHandlers(store: Store, library: Library) {
       return `${IMAGE_SCHEME}:${rel}`
     },
 
+    /**
+     * 匯出成 .md：圖片複製到旁邊的「<檔名> 附件」資料夾，用相對路徑連過去。
+     * 回傳實際寫入的檔案。
+     */
+    exportMarkdown: (pageId: string, target: string): string => {
+      const page = pageOf(pageId)
+      if (!page) throw new Error('找不到這一頁')
+      const blocks = store.all<NoteBlock>('SELECT id, sort, content FROM note_blocks WHERE page_id = ? ORDER BY sort', [pageId])
+      const base = path.basename(target, path.extname(target))
+      const assets = `${base} 附件`
+      const image = (src: string): string => {
+        const rel = noteImagePath(src)
+        const file = rel && library.resolveNote(rel)
+        if (!file) return src
+        fs.mkdirSync(path.join(path.dirname(target), assets), { recursive: true })
+        fs.copyFileSync(file, path.join(path.dirname(target), assets, path.basename(file)))
+        return `${encodeURIComponent(assets)}/${encodeURIComponent(path.basename(file))}`
+      }
+      fs.writeFileSync(target, pageToMarkdown(page.title, blocks, image, false), 'utf8')
+      return target
+    },
+
+    /**
+     * 讀進一個 .md：本機的圖片複製進「筆記\附件」並改成程式內的位址。
+     * 轉成編輯器區塊由畫面處理（需要編輯器的格式定義）。
+     */
+    readMarkdown: (file: string): { name: string; markdown: string } => {
+      const dir = path.dirname(file)
+      const text = fs.readFileSync(file, 'utf8').replace(/^﻿/, '').replace(MD_MARKER, '').trimStart()
+      const markdown = text.replace(/(!\[[^\]]*\]\()(<[^>]+>|[^)\s]+)((?:\s+"[^"]*")?\))/g, (whole, open: string, raw: string, close: string) => {
+        const ref = raw.replace(/^<|>$/g, '')
+        if (/^[a-z][a-z0-9+.-]*:/i.test(ref) && !/^[a-z]:[\\/]/i.test(ref) && !ref.startsWith('file:')) return whole
+        let src: string
+        try {
+          src = decodeURIComponent(ref.replace(/^file:\/\/\/?/, ''))
+        } catch {
+          src = ref
+        }
+        const full = path.resolve(dir, src)
+        if (!imageType(full) || !fs.existsSync(full)) return whole
+        const rel = `${ATTACHMENTS}/${randomUUID()}${path.extname(full).toLowerCase()}`
+        library.writeNote(rel, fs.readFileSync(full))
+        return `${open}${IMAGE_SCHEME}:${encodeURI(rel)}${close}`
+      })
+      return { name: path.basename(file, path.extname(file)), markdown }
+    },
+
+    /** 匯入的內容建成新的一頁（區塊已經由畫面轉好） */
+    'notes.importPage': (projectId: string, parentId: string | null, title: string, contents: string[]): string => {
+      const siblings = pagesOf(projectId).filter((p) => p.parent_id === parentId)
+      const id = randomUUID()
+      const time = now()
+      store.write((tx) => {
+        tx.set('note_pages', id, {
+          project_id: projectId,
+          parent_id: parentId,
+          title: title.trim(),
+          sort: siblings.length ? Math.max(...siblings.map((p) => p.sort)) + 1 : 0,
+          created_at: time,
+          updated_at: time,
+          trashed_at: null
+        })
+        contents.forEach((content, sort) => tx.set('note_blocks', randomUUID(), { page_id: id, sort, content }))
+      })
+      return id
+    },
+
     /** 啟動時清掉放進垃圾桶超過 30 天的頁面 */
     purgeOldTrash: (): void => {
       const limit = new Date(Date.now() - TRASH_DAYS * 86400_000).toISOString()
@@ -209,7 +286,8 @@ export function blockToMarkdown(node: PmNode, image: (src: string) => string, in
   }
 }
 
-export function pageToMarkdown(title: string, blocks: NoteBlock[], image: (src: string) => string): string {
+/** marker：資料夾裡的自動副本要加標記；匯出給使用者的檔案不加 */
+export function pageToMarkdown(title: string, blocks: NoteBlock[], image: (src: string) => string, marker = true): string {
   const body = blocks
     .map((b) => {
       try {
@@ -219,7 +297,7 @@ export function pageToMarkdown(title: string, blocks: NoteBlock[], image: (src: 
       }
     })
     .join('\n\n')
-  return `${MD_MARKER}\n\n# ${title || '未命名'}\n\n${body}\n`
+  return `${marker ? `${MD_MARKER}\n\n` : ''}# ${title || '未命名'}\n\n${body}\n`
 }
 
 /**
@@ -273,7 +351,7 @@ export class NotesMirror {
       // 圖片連結：從這個 .md 的位置指到「筆記\附件」
       const toAttachments = path.relative(path.dirname(file), path.join(root, ATTACHMENTS)).split(path.sep).join('/')
       const image = (src: string): string =>
-        src.startsWith(`${IMAGE_SCHEME}:${ATTACHMENTS}/`) ? `${toAttachments}/${src.slice(IMAGE_SCHEME.length + ATTACHMENTS.length + 2)}` : src
+        noteImagePath(src)?.startsWith(`${ATTACHMENTS}/`) ? `${toAttachments}/${encodeURIComponent(noteImagePath(src)!.slice(ATTACHMENTS.length + 1))}` : src
       const blocks = this.store.all<NoteBlock>('SELECT id, sort, content FROM note_blocks WHERE page_id = ? ORDER BY sort', [page.id])
       const text = pageToMarkdown(page.title, blocks, image)
       keep.add(path.resolve(file).toLowerCase())

@@ -46,18 +46,9 @@ export function TaskRow({ task, onToggle, editable, onRename, onDate, onRemove, 
       ) : (
         <span className="task-title">{task.title}</span>
       )}
-      {links && onNavigate && (links.nodes.length > 0 || links.papers.length > 0) && (
+      {/* 待辦只顯示連結的文獻；心智圖節點不顯示，避免清單太雜 */}
+      {links && onNavigate && links.papers.length > 0 && (
         <span className="task-links">
-          {links.nodes.map((n) => (
-            <button
-              key={n.nodeId}
-              className="badge is-link"
-              onClick={() => onNavigate({ page: 'mindmap', mapId: n.mapId, nodeId: n.nodeId })}
-              title={`心智圖「${n.mapName}」`}
-            >
-              節點：{n.text}
-            </button>
-          ))}
           {links.papers.map((p) => (
             <button
               key={p.id}

@@ -482,6 +482,11 @@ export interface DeskApi {
     saveBlocks(pageId: string, changes: NoteBlockChanges): Promise<void>
     /** 貼上或拖進來的圖片：存進「筆記附件」，回傳編輯器用的 src */
     saveImage(name: string, data: ArrayBuffer): Promise<string>
+    /** 匯出成 .md（跳出存檔視窗）；按取消回傳 false */
+    exportMd(pageId: string, title: string): Promise<boolean>
+    /** 選 .md 檔（可以多選），回傳內容；圖片已經複製進筆記附件 */
+    pickMd(): Promise<{ name: string; markdown: string }[]>
+    importPage(projectId: string, parentId: string | null, title: string, contents: string[]): Promise<string>
   }
   marks: {
     list(mapId: string): Promise<MindMark[]>

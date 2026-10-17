@@ -1,7 +1,8 @@
-import { ChevronDown, ChevronRight, FilePlus, FileText, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileDown, FilePlus, FileText, FileUp, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Focus, NotePage } from '../../../shared/types'
 import { IconButton } from '../components/IconButton'
+import { markdownToPage } from '../notes/markdown'
 import { NoteEditor } from '../notes/NoteEditor'
 import { desk } from '../useDesk'
 
@@ -91,6 +92,22 @@ export function NotesView({ projectId, run, onNavigate }: { projectId: string; r
       await load()
       setCurrentId(page.id)
       setFresh(page.id)
+    })
+  }
+
+  /** 匯入 .md：每個檔案變成最上層的一頁，打開第一個 */
+  const importMd = (): void => {
+    run(async () => {
+      const files = await desk.notes.pickMd()
+      let first: string | null = null
+      for (const f of files) {
+        const { title, blocks } = markdownToPage(f.markdown, f.name)
+        const id = await desk.notes.importPage(projectId, null, title, blocks)
+        first ??= id
+      }
+      if (!first) return
+      await load()
+      setCurrentId(first)
     })
   }
 
@@ -186,7 +203,10 @@ export function NotesView({ projectId, run, onNavigate }: { projectId: string; r
       <aside className="notes-side" aria-label="筆記頁面">
         <div className="notes-side-head">
           <span>頁面</span>
-          <IconButton icon={FilePlus} label="新增頁面" onClick={() => create(null)} />
+          <span className="notes-side-tools">
+            <IconButton icon={FileUp} label="匯入 .md（可以多選）" onClick={importMd} />
+            <IconButton icon={FilePlus} label="新增頁面" onClick={() => create(null)} />
+          </span>
         </div>
         {roots.length === 0 ? (
           <p className="muted notes-empty">還沒有筆記。按上面的圖示新增第一頁。</p>
@@ -212,7 +232,22 @@ export function NotesView({ projectId, run, onNavigate }: { projectId: string; r
         )}
         {current ? (
           <div className="note-page" key={current.id}>
-            <Breadcrumb page={current} pages={live} onOpen={setCurrentId} />
+            <div className="note-page-head">
+              <Breadcrumb page={current} pages={live} onOpen={setCurrentId} />
+              <span className="spacer" />
+              <IconButton
+                icon={FileDown}
+                label="匯出這一頁成 .md"
+                onClick={() =>
+                  // 讓編輯器先把還沒存的內容存進去（失去焦點時存檔）
+                  run(async () => {
+                    ;(document.activeElement as HTMLElement | null)?.blur()
+                    await new Promise((r) => window.setTimeout(r, 150))
+                    await desk.notes.exportMd(current.id, current.title)
+                  })
+                }
+              />
+            </div>
             <PageTitle page={current} run={run} autoFocus={fresh === current.id} />
             <NoteEditor
               pageId={current.id}
@@ -230,6 +265,9 @@ export function NotesView({ projectId, run, onNavigate }: { projectId: string; r
             </p>
             <button className="btn btn-primary" onClick={() => create(null)}>
               新增第一頁
+            </button>{' '}
+            <button className="btn" onClick={importMd}>
+              匯入 .md
             </button>
           </div>
         )}

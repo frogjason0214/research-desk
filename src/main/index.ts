@@ -188,8 +188,9 @@ function status(): AppStatus {
 function registerIpc(): void {
   const data = createDataHandlers(store) as Record<string, (...args: never[]) => unknown>
   const mindmaps = createMindmapHandlers(store)
-  const notes = createNotesHandlers(store, library)
-  notes.purgeOldTrash()
+  // 會讀寫任意路徑的函式不直接開放給畫面，只透過下面的存檔／開檔視窗使用
+  const { exportMarkdown, readMarkdown, purgeOldTrash, ...notes } = createNotesHandlers(store, library)
+  purgeOldTrash()
 
   const handlers: Record<string, (...args: never[]) => unknown> = {
     ...data,
@@ -197,6 +198,34 @@ function registerIpc(): void {
     ...(papers.handlers as Record<string, (...args: never[]) => unknown>),
     ...(mindmaps as Record<string, (...args: never[]) => unknown>),
     ...(notes as Record<string, (...args: never[]) => unknown>),
+    'notes.exportMd': async (pageId: string, title: string): Promise<boolean> => {
+      // 自動化測試用：直接存到指定位置，不跳存檔視窗
+      const testPath = process.env.RESEARCH_DESK_EXPORT_PATH
+      const result = testPath
+        ? { canceled: false, filePath: testPath }
+        : await dialog.showSaveDialog({
+            title: '匯出筆記',
+            defaultPath: path.join(app.getPath('documents'), `${title.replace(/[\\/:*?"<>|]/g, '_') || '未命名'}.md`),
+            filters: [{ name: 'Markdown', extensions: ['md'] }]
+          })
+      if (result.canceled || !result.filePath) return false
+      const file = exportMarkdown(pageId, result.filePath)
+      if (!testPath) shell.showItemInFolder(file)
+      return true
+    },
+    'notes.pickMd': async (): Promise<{ name: string; markdown: string }[]> => {
+      const testPaths = process.env.RESEARCH_DESK_IMPORT_PATHS
+      const files = testPaths
+        ? testPaths.split('|')
+        : (
+            await dialog.showOpenDialog({
+              title: '匯入 Markdown',
+              filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }],
+              properties: ['openFile', 'multiSelections']
+            })
+          ).filePaths
+      return files.map(readMarkdown)
+    },
     // 刪除專案時連同文獻的檔案、心智圖、筆記一起刪
     'projects.remove': (id: string) => {
       for (const p of store.all<{ id: string }>('SELECT id FROM papers WHERE project_id = ?', [id]))

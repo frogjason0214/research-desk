@@ -2708,3 +2708,16 @@ a.btn {
   color: var(--ink-soft);
   cursor: default;
 }
+.notes-side-tools {
+  display: inline-flex;
+  gap: 2px;
+}
+.note-page-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+.note-page-head .note-crumbs {
+  margin-bottom: 0;
+}
