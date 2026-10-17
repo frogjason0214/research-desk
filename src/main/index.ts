@@ -1,6 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron'
 import path from 'node:path'
-import type { AppStatus, SidebarLayout } from '../shared/types'
+import type { AiStatus, AppStatus, SidebarLayout } from '../shared/types'
+import { Gemini, GEMINI_MODEL } from './ai/gemini'
+import { createPapers } from './papers'
 import { detectCloudFolders } from './cloud'
 import { loadConfig, saveConfig, type LocalConfig } from './config'
 import { createGoogle } from './google'
@@ -22,6 +24,8 @@ let store: Store
 let library: Library
 let google: ReturnType<typeof createGoogle>
 let updater: ReturnType<typeof createUpdater>
+let gemini: Gemini
+let papers: ReturnType<typeof createPapers>
 let flushed = false
 
 /** 結束前把還沒上傳的修改寫進雲端資料夾 */
@@ -177,6 +181,20 @@ function registerIpc(): void {
   const handlers: Record<string, (...args: never[]) => unknown> = {
     ...data,
     ...(google.handlers as Record<string, (...args: never[]) => unknown>),
+    ...(papers.handlers as Record<string, (...args: never[]) => unknown>),
+    // 刪除專案時連同文獻的檔案一起刪
+    'projects.remove': (id: string) => {
+      for (const p of store.all<{ id: string }>('SELECT id FROM papers WHERE project_id = ?', [id]))
+        papers.handlers['papers.remove'](p.id)
+      return (data['projects.remove'] as (id: string) => void)(id)
+    },
+    'ai.status': (): AiStatus => ({ hasKey: gemini.hasKey, model: GEMINI_MODEL, autoFill: config.aiAutoFill ?? true }),
+    'ai.setKey': (key: string) => gemini.setKey(key),
+    'ai.clearKey': () => gemini.clearKey(),
+    'ai.setAutoFill': (on: boolean) => {
+      config.aiAutoFill = on
+      saveConfig(config)
+    },
     status,
     'update.check': () => updater.check(),
     'update.install': () => updater.install(),
@@ -265,6 +283,15 @@ if (!app.requestSingleInstanceLock()) {
     store.onChange(broadcastChanged)
 
     updater = createUpdater({ onChange: broadcastChanged, beforeInstall: flushBeforeQuit })
+
+    gemini = new Gemini(path.join(app.getPath('userData'), 'gemini-key.bin'))
+    papers = createPapers({
+      store,
+      library,
+      gemini,
+      autoFill: () => config.aiAutoFill ?? true,
+      onChange: broadcastChanged
+    })
 
     google = createGoogle({
       store,

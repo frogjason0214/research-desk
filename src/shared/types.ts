@@ -47,6 +47,104 @@ export interface CloudCandidate {
 export type SyncEnableResult = 'done' | 'needsChoice'
 export type SyncChoice = 'merge' | 'discard'
 
+// ---------- 文獻 ----------
+
+export interface Author {
+  family: string
+  given: string
+}
+
+/** 書目欄位（APA 引用格式會用到的部分） */
+export interface Bib {
+  title: string
+  authors: Author[]
+  year: string
+  /** 網頁的發布日期 YYYY-MM-DD（可只有年或年月） */
+  date: string
+  /** 期刊名稱，或網頁的網站名稱 */
+  journal: string
+  volume: string
+  issue: string
+  pages: string
+  doi: string
+  url: string
+}
+
+export interface Paper extends Bib {
+  id: string
+  project_id: string
+  kind: 'pdf' | 'web'
+  lang: 'en' | 'zh'
+  /** ok：書目已確認；pending：待確認（AI 判讀或還沒有書目） */
+  bib_status: 'ok' | 'pending'
+  study_type: string
+  sample: string
+  measures: string
+  findings: string
+  /** 1 = 上面四項是 AI 預填，請核對 */
+  ai_filled: number
+  notes: string
+  /** 1 = 這篇文獻（全文與欄位）永不送 AI */
+  no_ai: number
+  /** 1 = 筆記永不送 AI */
+  notes_no_ai: number
+  /** ok：已抽出全文；empty：PDF 沒有文字（掃描檔）；pending：處理中 */
+  text_status: 'ok' | 'empty' | 'pending'
+  /** 正在背景查書目或 AI 預填（只在這台電腦、這次執行有效） */
+  busy: number
+  /** 背景處理最後一次的錯誤 */
+  error: string | null
+  added_at: string
+}
+
+export interface PaperHit {
+  paperId: string
+  page: number
+  text: string
+}
+
+export type PaperPatch = Partial<
+  Pick<
+    Paper,
+    | 'title'
+    | 'year'
+    | 'date'
+    | 'journal'
+    | 'volume'
+    | 'issue'
+    | 'pages'
+    | 'doi'
+    | 'url'
+    | 'study_type'
+    | 'sample'
+    | 'measures'
+    | 'findings'
+    | 'notes'
+    | 'no_ai'
+    | 'notes_no_ai'
+    | 'ai_filled'
+    | 'lang'
+  >
+> & { authors?: Author[] }
+
+export interface PdfImport {
+  name: string
+  data: ArrayBuffer
+  /** 每一頁抽出的文字 */
+  pages: string[]
+  noAi: boolean
+}
+
+export interface AiStatus {
+  hasKey: boolean
+  model: string
+  /** 匯入文獻時自動使用 AI（這台電腦的設定） */
+  autoFill: boolean
+}
+
+/** 心理學研究類型（AI 預填也從這裡選） */
+export const STUDY_TYPES = ['實驗', '準實驗', '問卷調查', '縱貫研究', '質性研究', '混合方法', '後設分析', '系統性回顧', '個案研究', '理論／評論', '其他']
+
 // ---------- Google 行事曆 ----------
 
 export interface GoogleStatus {
@@ -159,6 +257,27 @@ export interface DeskApi {
     enable(folder: string, choice?: SyncChoice): Promise<SyncEnableResult>
     disable(): Promise<void>
     now(): Promise<AppStatus>
+  }
+  papers: {
+    list(projectId: string): Promise<Paper[]>
+    importPdf(projectId: string, file: PdfImport): Promise<string>
+    importWeb(projectId: string, url: string, noAi: boolean): Promise<string>
+    update(id: string, patch: PaperPatch): Promise<void>
+    confirmBib(id: string): Promise<void>
+    lookupDoi(id: string, doi: string): Promise<void>
+    aiFill(id: string): Promise<void>
+    /** file：PDF 或正文快照；page：網頁整頁快照 */
+    open(id: string, which: 'file' | 'page'): Promise<void>
+    remove(id: string): Promise<void>
+    search(projectId: string, query: string): Promise<PaperHit[]>
+    /** 複製到剪貼簿（純文字與 HTML，貼到 Word 會保留斜體） */
+    copy(text: string, html: string): Promise<void>
+  }
+  ai: {
+    status(): Promise<AiStatus>
+    setKey(key: string): Promise<void>
+    clearKey(): Promise<void>
+    setAutoFill(on: boolean): Promise<void>
   }
   google: {
     signIn(): Promise<void>

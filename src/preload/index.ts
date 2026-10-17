@@ -35,6 +35,25 @@ const api: DeskApi = {
     disable: call('sync.disable'),
     now: call('sync.now')
   },
+  papers: {
+    list: call('papers.list'),
+    importPdf: call('papers.importPdf'),
+    importWeb: call('papers.importWeb'),
+    update: call('papers.update'),
+    confirmBib: call('papers.confirmBib'),
+    lookupDoi: call('papers.lookupDoi'),
+    aiFill: call('papers.aiFill'),
+    open: call('papers.open'),
+    remove: call('papers.remove'),
+    search: call('papers.search'),
+    copy: call('papers.copy')
+  },
+  ai: {
+    status: call('ai.status'),
+    setKey: call('ai.setKey'),
+    clearKey: call('ai.clearKey'),
+    setAutoFill: call('ai.setAutoFill')
+  },
   google: {
     signIn: call('google.signIn'),
     signOut: call('google.signOut')

@@ -163,6 +163,30 @@ export class Library {
     return path.join(this.available ? this.cloudDir! : this.localDir, FILES)
   }
 
+  /** 寫入 files/ 底下的檔案（相對路徑，例如 papers/<id>.pdf）；寫入後不再修改 */
+  writeFile(rel: string, data: string | Uint8Array): void {
+    const dest = path.join(this.filesDir, rel)
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    const tmp = `${dest}.tmp`
+    fs.writeFileSync(tmp, data)
+    fs.renameSync(tmp, dest)
+  }
+
+  /** 找出檔案實際位置：雲端資料夾優先，其次是本機（雲端找不到時寫在本機的） */
+  resolveFile(rel: string): string | null {
+    const dirs = [this.available ? path.join(this.cloudDir!, FILES) : null, path.join(this.localDir, FILES)]
+    for (const dir of dirs) {
+      if (dir && fs.existsSync(path.join(dir, rel))) return path.join(dir, rel)
+    }
+    return null
+  }
+
+  removeFile(rel: string): void {
+    for (const dir of [this.cloudDir && path.join(this.cloudDir, FILES), path.join(this.localDir, FILES)]) {
+      if (dir) fs.rmSync(path.join(dir, rel), { force: true })
+    }
+  }
+
   /** 曾經同步過資料的其他電腦數量 */
   otherDevices(): number {
     return listLogs(this.localDir).filter(
@@ -254,6 +278,14 @@ export class Library {
         this.pullLog(src, path.join(this.localDir, CHANGES, name))
         this.seen.set(name, sig)
         changed = true
+      }
+
+      // 雲端資料夾找不到時寫在本機的檔案，搬到雲端
+      const localFiles = path.join(this.localDir, FILES)
+      if (fs.readdirSync(localFiles).length > 0) {
+        copyMissingFiles(localFiles, path.join(cloud, FILES))
+        fs.rmSync(localFiles, { recursive: true, force: true })
+        fs.mkdirSync(localFiles, { recursive: true })
       }
 
       const ownCloud = path.join(cloud, CHANGES, this.ownName)

@@ -12,6 +12,17 @@ export const TABLES: Record<string, { fields: string[]; required: string[] }> = 
   tasks: {
     fields: ['project_id', 'title', 'due_date', 'done', 'done_at', 'created_at', 'gcal_event_id'],
     required: ['project_id', 'title']
+  },
+  papers: {
+    fields: [
+      'project_id', 'kind', 'lang', 'bib_status',
+      // 書目；authors 存成 JSON 字串
+      'title', 'authors', 'year', 'date', 'journal', 'volume', 'issue', 'pages', 'doi', 'url',
+      // 心理學欄位
+      'study_type', 'sample', 'measures', 'findings', 'ai_filled',
+      'notes', 'no_ai', 'notes_no_ai', 'text_status', 'added_at'
+    ],
+    required: ['project_id', 'kind']
   }
 }
 
@@ -28,6 +39,16 @@ CREATE TABLE tasks (
   id TEXT PRIMARY KEY, project_id TEXT, title TEXT, due_date TEXT,
   done INTEGER DEFAULT 0, done_at TEXT, created_at TEXT, gcal_event_id TEXT
 );
+CREATE TABLE papers (
+  id TEXT PRIMARY KEY, project_id TEXT, kind TEXT, lang TEXT DEFAULT 'en', bib_status TEXT DEFAULT 'pending',
+  title TEXT DEFAULT '', authors TEXT DEFAULT '[]', year TEXT DEFAULT '', date TEXT DEFAULT '',
+  journal TEXT DEFAULT '', volume TEXT DEFAULT '', issue TEXT DEFAULT '', pages TEXT DEFAULT '',
+  doi TEXT DEFAULT '', url TEXT DEFAULT '',
+  study_type TEXT DEFAULT '', sample TEXT DEFAULT '', measures TEXT DEFAULT '', findings TEXT DEFAULT '',
+  ai_filled INTEGER DEFAULT 0, notes TEXT DEFAULT '', no_ai INTEGER DEFAULT 0, notes_no_ai INTEGER DEFAULT 0,
+  text_status TEXT DEFAULT 'pending', added_at TEXT
+);
+CREATE INDEX idx_papers_project ON papers(project_id);
 CREATE INDEX idx_milestones_project ON milestones(project_id);
 CREATE INDEX idx_tasks_project ON tasks(project_id);
 `

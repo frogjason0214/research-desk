@@ -14,6 +14,8 @@ export interface LocalConfig {
   sidebarTop?: number
   /** 這台電腦登入的 Google 帳號裡「研究任務」行事曆的 ID */
   researchCalendarId?: string
+  /** 匯入文獻時自動使用 AI（預設開啟） */
+  aiAutoFill?: boolean
   /** 舊版設定：使用者選的資料夾，啟動時會轉成 syncDir */
   dataDir?: string
 }

@@ -5,18 +5,20 @@ import { ErrorBanner, GoogleBanner, SyncBanner, UpdateBanner } from '../componen
 import { Countdown } from '../components/Countdown'
 import { CreateProject } from '../components/CreateProject'
 import { EditableTitle } from '../components/EditableTitle'
+import { AiSettings } from '../components/AiSettings'
 import { GoogleSettings } from '../components/GoogleSettings'
 import { SyncSettings } from '../components/SyncSettings'
 import { TaskRow } from '../components/TaskRow'
 import { desk, useDesk, useRun, type DeskState } from '../useDesk'
 import { CalendarView } from './CalendarView'
+import { LiteratureView } from './LiteratureView'
 
 type Tab = 'milestones' | 'tasks' | 'settings'
 
-const SOON = ['文獻', '心智圖', 'AI 教授']
+const SOON = ['心智圖', 'AI 教授']
 
 /** 主畫面：目前專案的分頁，或跨專案的功能頁 */
-type Page = 'project' | 'calendar'
+type Page = 'project' | 'literature' | 'calendar'
 
 export function FullWindow() {
   const state = useDesk()
@@ -71,14 +73,18 @@ export function FullWindow() {
 
         <h2 className="nav-heading">工具</h2>
         <ul className="nav-list">
-          <li>
-            <button
-              className={`nav-item${page === 'calendar' ? ' is-active' : ''}`}
-              onClick={() => setPage('calendar')}
-            >
-              行事曆
-            </button>
-          </li>
+          {(
+            [
+              ['literature', '文獻'],
+              ['calendar', '行事曆']
+            ] as [Page, string][]
+          ).map(([key, label]) => (
+            <li key={key}>
+              <button className={`nav-item${page === key ? ' is-active' : ''}`} onClick={() => setPage(key)}>
+                {label}
+              </button>
+            </li>
+          ))}
         </ul>
 
         <h2 className="nav-heading">即將推出</h2>
@@ -103,6 +109,13 @@ export function FullWindow() {
 
         {page === 'calendar' ? (
           <CalendarView status={state.status} run={run} />
+        ) : page === 'literature' && current ? (
+          <>
+            <header className="main-head">
+              <h2 className="project-name">{current.name}・文獻</h2>
+            </header>
+            <LiteratureView projectId={current.id} run={run} />
+          </>
         ) : !current ? (
           <CreateProject
             onCreate={(name) =>
@@ -331,6 +344,8 @@ function SettingsView({ state, run, onDeleted }: { state: DeskState; run: Run; o
       <SyncSettings status={state.status} run={run} />
 
       <GoogleSettings status={state.status} run={run} />
+
+      <AiSettings run={run} />
 
       <section>
         <h3>程式</h3>
