@@ -13,17 +13,10 @@ import {
   type TaskLinks
 } from '../../../shared/types'
 import { IconButton } from '../components/IconButton'
-import { extractPdfText } from '../pdf'
+import { importPdfFile, isPdf, JobList, useImportJobs } from '../importing'
 import { desk } from '../useDesk'
 
 type Run = (fn: () => Promise<unknown>) => Promise<void>
-
-interface Job {
-  key: string
-  label: string
-  state: 'working' | 'done' | 'error'
-  message?: string
-}
 
 const authorLine = (p: Paper): string => {
   const names = p.authors.map((a) => (p.lang === 'zh' ? `${a.family}${a.given}` : a.family))
@@ -51,7 +44,7 @@ export function LiteratureView({
   }, [focusPaperId])
   const [filter, setFilter] = useState('')
   const [hits, setHits] = useState<PaperHit[] | null>(null)
-  const [jobs, setJobs] = useState<Job[]>([])
+  const { jobs, run: runJob } = useImportJobs()
   const [url, setUrl] = useState('')
   const [noAi, setNoAi] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -63,27 +56,10 @@ export function LiteratureView({
     return desk.onChanged(load)
   }, [load])
 
-  const updateJob = (key: string, patch: Partial<Job>): void =>
-    setJobs((list) => list.map((j) => (j.key === key ? { ...j, ...patch } : j)))
-  const addJob = (label: string): string => {
-    const key = `${Date.now()}-${Math.random()}`
-    setJobs((list) => [{ key, label, state: 'working' as const }, ...list].slice(0, 6))
-    return key
-  }
-
   const importFiles = async (files: File[]): Promise<void> => {
-    for (const file of files) {
-      if (!/\.pdf$/i.test(file.name)) continue
-      const key = addJob(file.name)
-      try {
-        const data = await file.arrayBuffer()
-        const pages = await extractPdfText(data)
-        const id = await desk.papers.importPdf(projectId, { name: file.name, data, pages, noAi })
-        updateJob(key, { state: 'done' })
-        setSelected(id)
-      } catch (err) {
-        updateJob(key, { state: 'error', message: err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err) })
-      }
+    for (const file of files.filter(isPdf)) {
+      const id = await runJob(file.name, () => importPdfFile(projectId, file, noAi))
+      if (id) setSelected(id)
     }
   }
 
@@ -91,14 +67,8 @@ export function LiteratureView({
     const target = url.trim()
     if (!target) return
     setUrl('')
-    const key = addJob(target)
-    try {
-      const id = await desk.papers.importWeb(projectId, target, noAi)
-      updateJob(key, { state: 'done' })
-      setSelected(id)
-    } catch (err) {
-      updateJob(key, { state: 'error', message: err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err) })
-    }
+    const id = await runJob(target, () => desk.papers.importWeb(projectId, target, noAi))
+    if (id) setSelected(id)
   }
 
   // 篩選標題、作者、期刊、筆記；按 Enter 才搜尋全文
@@ -161,18 +131,7 @@ export function LiteratureView({
           <p className="muted lit-hint">也可以把 PDF 直接拖進這個頁面。</p>
         </div>
 
-        {jobs.length > 0 && (
-          <ul className="lit-jobs">
-            {jobs.map((j) => (
-              <li key={j.key} className={`job is-${j.state}`}>
-                <span className="job-label">{j.label}</span>
-                <span className="job-state">
-                  {j.state === 'working' ? '處理中…' : j.state === 'done' ? '已加入' : j.message}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <JobList jobs={jobs} />
 
         <form
           onSubmit={(e) => {

@@ -1436,6 +1436,50 @@ a.btn {
   pointer-events: none;
   margin: 0;
 }
+/* 拖 PDF 進畫布 */
+.mm-canvas.is-dragging {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent-soft);
+}
+.mm-drop-hint {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 5;
+  white-space: nowrap;
+}
+.mm-jobs {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: min(320px, 60%);
+  z-index: 5;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+  border-radius: 6px;
+}
+.mm-node.is-drop {
+  border-color: var(--accent);
+  border-style: dashed;
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.mm-import {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+}
+.mm-import .lit-url {
+  flex: 1;
+  min-width: 0;
+}
 .mm-node {
   position: relative;
   display: flex;

@@ -17,12 +17,13 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { toPng } from 'html-to-image'
-import { GitFork, ImageDown, Link2, ListPlus, Maximize, Network, Plus, Trash2 } from 'lucide-react'
+import { FileUp, GitFork, ImageDown, Link2, ListPlus, Maximize, Network, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Focus, MindMap, MindNode, NodeLinks, Paper, Task } from '../../../shared/types'
 import { EditableTitle } from '../components/EditableTitle'
 import { IconButton } from '../components/IconButton'
 import { relativeDay } from '../dates'
+import { importPdfFile, isPdf, JobList, useImportJobs } from '../importing'
 import { tidyLayout, type LayoutMode } from '../mindLayout'
 import { desk } from '../useDesk'
 
@@ -37,6 +38,8 @@ interface NodeData extends Record<string, unknown> {
   hiddenCount: number
   collapsed: boolean
   editing: boolean
+  /** 拖 PDF 經過這個節點 */
+  dropping: boolean
   papers: number
   tasks: number
   onToggle: (id: string) => void
@@ -102,7 +105,7 @@ function MindNodeView({ id, data, selected }: NodeProps<FlowNode>) {
 
   return (
     <div
-      className={`mm-node${data.isRoot ? ' is-root' : ''}${selected ? ' is-selected' : ''}${data.side === 'left' ? ' is-left' : ''}`}
+      className={`mm-node${data.isRoot ? ' is-root' : ''}${selected ? ' is-selected' : ''}${data.side === 'left' ? ' is-left' : ''}${data.dropping ? ' is-drop' : ''}`}
       onDoubleClick={() => data.onEdit(id)}
     >
       {data.isRoot ? (
@@ -327,6 +330,9 @@ function MapCanvas({
   const dragStart = useRef<Map<string, { x: number; y: number }> | null>(null)
   const wrapper = useRef<HTMLDivElement>(null)
   const fitted = useRef(false)
+  const imports = useImportJobs(6000)
+  // 拖 PDF 進畫布：undefined＝沒在拖、null＝在空白處、字串＝在那個節點上
+  const [dropNode, setDropNode] = useState<string | null | undefined>(undefined)
 
   const load = useCallback(async () => {
     const [list, c] = await Promise.all([desk.nodes.list(map.id), desk.links.forMap(map.id)])
@@ -391,6 +397,7 @@ function MapCanvas({
               hiddenCount: n.collapsed ? descendants(nodes, n.id).length : 0,
               collapsed: !!n.collapsed,
               editing: n.id === editing,
+              dropping: n.id === dropNode,
               papers: counts[n.id]?.papers ?? 0,
               tasks: counts[n.id]?.tasks ?? 0,
               onToggle: toggle,
@@ -400,7 +407,7 @@ function MapCanvas({
           }
         })
     })
-  }, [nodes, hidden, selected, editing, counts, toggle, rename, sideOf])
+  }, [nodes, hidden, selected, editing, counts, toggle, rename, sideOf, dropNode])
 
   const edges: Edge[] = useMemo(
     () =>
@@ -561,6 +568,17 @@ function MapCanvas({
     })
   }
 
+  /** 從檔案總管拖 PDF 進來：放在節點上就連到那個節點 */
+  const nodeAt = (e: React.DragEvent): string | null =>
+    (document.elementFromPoint(e.clientX, e.clientY)?.closest('.react-flow__node') as HTMLElement | null)?.dataset.id ?? null
+  const dropFiles = async (files: File[], nodeId: string | null): Promise<void> => {
+    for (const file of files.filter(isPdf)) {
+      const id = await imports.run(file.name, () => importPdfFile(projectId, file, false))
+      if (id && nodeId) await run(() => desk.links.add('node', nodeId, 'paper', id))
+    }
+  }
+  const dropText = dropNode ? `放開就匯入並連到「${nodes.find((n) => n.id === dropNode)?.text ?? ''}」` : '放到節點上會自動連結；放在空白處只匯入'
+
   const sel = nodes.find((n) => n.id === selected)
   const pendingCount = pendingDelete ? descendants(nodes, pendingDelete).length : 0
 
@@ -594,7 +612,28 @@ function MapCanvas({
         </p>
       )}
       <div className="mm-body">
-        <div className="mm-canvas" ref={wrapper} tabIndex={0} onKeyDown={onKeyDown}>
+        <div
+          className={`mm-canvas${dropNode !== undefined ? ' is-dragging' : ''}`}
+          ref={wrapper}
+          tabIndex={0}
+          onKeyDown={onKeyDown}
+          onDragOver={(e) => {
+            if (!e.dataTransfer.types.includes('Files')) return
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'copy'
+            const id = nodeAt(e)
+            if (id !== dropNode) setDropNode(id)
+          }}
+          onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as globalThis.Node | null) && setDropNode(undefined)}
+          onDrop={(e) => {
+            if (!e.dataTransfer.types.includes('Files')) return
+            e.preventDefault()
+            const id = nodeAt(e)
+            setDropNode(undefined)
+            if (id) setSelected(id)
+            dropFiles([...e.dataTransfer.files], id)
+          }}
+        >
           <ReactFlow
             nodes={rfNodes}
             edges={edges}
@@ -658,6 +697,8 @@ function MapCanvas({
             <Background gap={24} size={1} />
             <Controls showInteractive={false} />
           </ReactFlow>
+          {dropNode !== undefined && <p className="mm-drop-hint">{dropText}</p>}
+          <JobList jobs={imports.jobs} className="mm-jobs" />
           <p className="mm-help muted">Tab 子節點・Enter 同層・F2／雙擊 改名・Delete 刪除・空白鍵 收合</p>
         </div>
         {/* 連結側欄：按工具列的連結圖示才打開；打開時畫布變窄，不會擋住節點 */}
@@ -702,6 +743,15 @@ function NodePanel({
   const [taskPick, setTaskPick] = useState('')
   const [newTask, setNewTask] = useState('')
   const [newDue, setNewDue] = useState('')
+  const [url, setUrl] = useState('')
+  const [noAi, setNoAi] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
+  const imports = useImportJobs()
+  /** 匯入的文獻直接連到這個節點 */
+  const importAndLink = async (label: string, work: () => Promise<string>): Promise<void> => {
+    const id = await imports.run(label, work)
+    if (id) await run(() => desk.links.add('node', node.id, 'paper', id))
+  }
 
   const load = useCallback(async () => {
     const [l, p] = await Promise.all([desk.links.forNode(node.id), desk.papers.list(projectId)])
@@ -758,6 +808,41 @@ function NodePanel({
             連結
           </button>
         </div>
+        <div className="mm-import">
+          <IconButton icon={FileUp} label="匯入 PDF 並連到這個節點" onClick={() => fileInput.current?.click()} />
+          <input
+            ref={fileInput}
+            type="file"
+            accept="application/pdf"
+            multiple
+            hidden
+            onChange={(e) => {
+              const files = [...(e.target.files ?? [])].filter(isPdf)
+              e.target.value = ''
+              void (async () => {
+                for (const file of files) await importAndLink(file.name, () => importPdfFile(projectId, file, noAi))
+              })()
+            }}
+          />
+          <form
+            className="lit-url"
+            onSubmit={(e) => {
+              e.preventDefault()
+              const target = url.trim()
+              if (!target) return
+              setUrl('')
+              void importAndLink(target, () => desk.papers.importWeb(projectId, target, noAi))
+            }}
+          >
+            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="貼上網址加入網頁" aria-label="網頁網址" />
+            <IconButton icon={Link2} label="加入這個網頁並連到節點" type="submit" disabled={!url.trim()} />
+          </form>
+        </div>
+        <label className="check muted">
+          <input type="checkbox" checked={noAi} onChange={(e) => setNoAi(e.target.checked)} />
+          這次匯入的不送 AI
+        </label>
+        <JobList jobs={imports.jobs} />
       </section>
 
       <section>
