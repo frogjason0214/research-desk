@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Archive, ExternalLink, FileText, FileUp, Globe, Link2, Newspaper, Trash2 } from 'lucide-react'
+import { Archive, BookOpenText, ExternalLink, FileText, FileUp, Globe, Link2, Newspaper, Trash2 } from 'lucide-react'
 import { apaCitation, inTextCitation } from '../../../shared/apa'
 import {
   STUDY_TYPES,
@@ -14,6 +14,7 @@ import {
 } from '../../../shared/types'
 import { IconButton } from '../components/IconButton'
 import { importPdfFile, isPdf, JobList, useImportJobs } from '../importing'
+import { ReaderView } from '../reader/ReaderView'
 import { desk } from '../useDesk'
 
 type Run = (fn: () => Promise<unknown>) => Promise<void>
@@ -80,6 +81,10 @@ export function LiteratureView({
     )
   }, [papers, filter])
   const current = papers.find((p) => p.id === selected) ?? null
+  // 正在閱讀的 PDF：整個文獻頁換成閱讀器
+  const [reading, setReading] = useState<string | null>(null)
+  const readingPaper = papers.find((p) => p.id === reading && p.kind === 'pdf')
+  if (readingPaper) return <ReaderView key={readingPaper.id} paper={readingPaper} onBack={() => setReading(null)} />
 
   return (
     <div
@@ -187,6 +192,7 @@ export function LiteratureView({
             run={run}
             onDeleted={() => setSelected(null)}
             onNavigate={onNavigate}
+            onRead={() => setReading(current.id)}
           />
         ) : (
           <div className="empty-card">
@@ -338,13 +344,15 @@ function PaperDetail({
   tasks,
   run,
   onDeleted,
-  onNavigate
+  onNavigate,
+  onRead
 }: {
   paper: Paper
   tasks: Task[]
   run: Run
   onDeleted: () => void
   onNavigate: (f: Focus) => void
+  onRead: () => void
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
@@ -368,9 +376,15 @@ function PaperDetail({
       <header className="paper-head">
         <h2>{p.title || '（沒有標題）'}</h2>
         <div className="btn-row">
+          {p.kind === 'pdf' && (
+            <button className="btn btn-primary btn-icon" onClick={onRead}>
+              <BookOpenText size={18} strokeWidth={1.8} aria-hidden />
+              閱讀
+            </button>
+          )}
           <IconButton
             icon={p.kind === 'pdf' ? FileText : p.kind === 'ref' ? ExternalLink : Newspaper}
-            label={p.kind === 'pdf' ? '開啟 PDF' : p.kind === 'ref' ? '開啟 DOI 連結' : '開啟正文快照'}
+            label={p.kind === 'pdf' ? '用其他程式開啟 PDF' : p.kind === 'ref' ? '開啟 DOI 連結' : '開啟正文快照'}
             onClick={() => run(() => desk.papers.open(p.id, 'file'))}
           />
           {p.kind === 'web' && <IconButton icon={Archive} label="開啟整頁快照" onClick={() => run(() => desk.papers.open(p.id, 'page'))} />}

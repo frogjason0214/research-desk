@@ -166,6 +166,9 @@ export function createPapers(opts: {
   })
 
   return {
+    /** PDF 閱讀器用：文獻 PDF 目前的完整路徑 */
+    locatePdf: (id: string): string | null => (row(id)?.kind === 'pdf' ? locate(id, 'pdf') : null),
+
     /** 給第四階段 AI 用：搜尋專案內可送 AI 的文獻段落 */
     searchForAi(projectId: string, query: string, limit = 8) {
       const papers = store.all<Row>('SELECT * FROM papers WHERE project_id = ? AND no_ai = 0', [projectId])

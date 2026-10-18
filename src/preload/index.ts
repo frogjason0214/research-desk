@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AiStream, DeskApi, Focus } from '../shared/types'
+import type { AiStream, DeskApi, Focus, ReaderStatus } from '../shared/types'
 
 // 畫面只能透過這個橋接物件存取資料，無法直接碰到檔案系統
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -48,6 +48,12 @@ const api: DeskApi = {
     remove: call('papers.remove'),
     search: call('papers.search'),
     copy: call('papers.copy')
+  },
+  reader: {
+    open: call('reader.open'),
+    queue: call('reader.queue'),
+    status: call('reader.status'),
+    restore: call('reader.restore')
   },
   mindmaps: {
     list: call('mindmaps.list'),
@@ -159,6 +165,11 @@ const api: DeskApi = {
     const handler = (_e: unknown, f: Focus): void => callback(f)
     ipcRenderer.on('desk:navigate', handler)
     return () => ipcRenderer.removeListener('desk:navigate', handler)
+  },
+  onReaderStatus: (callback) => {
+    const handler = (_e: unknown, s: ReaderStatus): void => callback(s)
+    ipcRenderer.on('reader:status', handler)
+    return () => ipcRenderer.removeListener('reader:status', handler)
   },
   onChanged: (callback) => {
     const handler = (): void => callback()

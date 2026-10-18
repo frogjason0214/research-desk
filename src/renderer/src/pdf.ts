@@ -1,9 +1,6 @@
-import * as pdfjs from 'pdfjs-dist'
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { openPdf } from './reader/pdfjs'
 
 // 用 Mozilla pdf.js 抽出每一頁的文字。行與行之間距離特別大時視為段落，插入空行，方便之後切段落。
-
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
 interface TextItem {
   str: string
@@ -13,8 +10,7 @@ interface TextItem {
 }
 
 export async function extractPdfText(data: ArrayBuffer): Promise<string[]> {
-  // pdf.js 會把 ArrayBuffer 轉交給 worker，用副本避免原本的資料被清空
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(data.slice(0)) }).promise
+  const doc = await openPdf(data).promise
   const pages: string[] = []
   try {
     for (let i = 1; i <= doc.numPages; i++) {

@@ -2,11 +2,12 @@ import { app, BrowserWindow, dialog, ipcMain, net, protocol, screen, shell } fro
 import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { AiStatus, AppStatus, Focus, SidebarLayout } from '../shared/types'
+import type { AiStatus, AppStatus, Focus, PdfAnnotOp, SidebarLayout } from '../shared/types'
 import { createProfessor } from './ai/professor'
 import { Gemini, GEMINI_MODEL } from './ai/gemini'
 import { createPapers } from './papers'
 import { Organizer } from './papers/organizer'
+import { createReader } from './papers/reader'
 import { detectCloudFolders } from './cloud'
 import { loadConfig, saveConfig, type LocalConfig } from './config'
 import { createGoogle } from './google'
@@ -34,12 +35,14 @@ let google: ReturnType<typeof createGoogle>
 let updater: ReturnType<typeof createUpdater>
 let gemini: Gemini
 let papers: ReturnType<typeof createPapers>
+let reader: ReturnType<typeof createReader> | undefined
 let professor: ReturnType<typeof createProfessor>
 let flushed = false
 
 /** 結束前把還沒上傳的修改寫進雲端資料夾 */
 async function flushBeforeQuit(): Promise<void> {
   if (flushed) return
+  await reader?.flush().catch(() => {})
   await library?.flush().catch(() => {})
   flushed = true
 }
@@ -233,8 +236,10 @@ function registerIpc(): void {
     },
     // 刪除專案時連同文獻的檔案、心智圖、筆記一起刪
     'projects.remove': (id: string) => {
-      for (const p of store.all<{ id: string }>('SELECT id FROM papers WHERE project_id = ?', [id]))
+      for (const p of store.all<{ id: string }>('SELECT id FROM papers WHERE project_id = ?', [id])) {
         papers.handlers['papers.remove'](p.id)
+        reader?.forget(p.id)
+      }
       for (const m of store.all<{ id: string }>('SELECT id FROM mindmaps WHERE project_id = ?', [id]))
         mindmaps['mindmaps.remove'](m.id)
       for (const p of store.all<{ id: string }>('SELECT id FROM note_pages WHERE project_id = ? AND parent_id IS NULL', [id]))
@@ -247,6 +252,14 @@ function registerIpc(): void {
       if (tips.length) store.write((tx) => tips.forEach((t) => tx.remove('daily_tips', t.id)))
       return (data['projects.remove'] as (id: string) => void)(id)
     },
+    'papers.remove': (id: string) => {
+      papers.handlers['papers.remove'](id)
+      reader?.forget(id)
+    },
+    'reader.open': (paperId: string) => reader!.open(paperId),
+    'reader.queue': (paperId: string, ops: PdfAnnotOp[]) => reader!.queue(paperId, ops),
+    'reader.status': (paperId: string) => reader!.status(paperId),
+    'reader.restore': (paperId: string) => reader!.restore(paperId),
     'mindmaps.saveImage': async (name: string, dataUrl: string): Promise<boolean> => {
       // 自動化測試用：直接存到指定位置，不跳存檔視窗
       const testPath = process.env.RESEARCH_DESK_EXPORT_PATH
@@ -386,6 +399,13 @@ if (!app.requestSingleInstanceLock()) {
       gemini,
       autoFill: () => config.aiAutoFill ?? true,
       onChange: broadcastChanged
+    })
+    // PDF 閱讀器：螢光筆與便利貼寫回文獻原本的 PDF
+    reader = createReader({
+      library,
+      locate: (id) => papers.locatePdf(id),
+      pendingFile: path.join(app.getPath('userData'), 'reader-pending.json'),
+      emit: (s) => BrowserWindow.getAllWindows().forEach((w) => w.webContents.send('reader:status', s))
     })
     // 文獻檔案依心智圖節點整理；資料變動後幾秒執行一次
     const organizer = new Organizer(store, library, (link, target) => {

@@ -2721,3 +2721,271 @@ a.btn {
 .note-page-head .note-crumbs {
   margin-bottom: 0;
 }
+
+/* ---------- PDF 閱讀器 ---------- */
+
+.reader {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: calc(100vh - 150px);
+  min-height: 420px;
+}
+.reader-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.reader-title {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  margin: 0 6px;
+}
+.reader-pages {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.reader-pages input {
+  width: 46px;
+  text-align: center;
+  padding: 3px 4px;
+}
+.reader-zoom {
+  font-size: 12px;
+  color: var(--ink-soft);
+  min-width: 38px;
+  text-align: center;
+}
+.reader-sep {
+  width: 1px;
+  height: 22px;
+  margin: 0 4px;
+  background: var(--rule);
+}
+.reader-colors {
+  display: inline-flex;
+  gap: 4px;
+  margin: 0 4px;
+}
+.reader-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--panel);
+  box-shadow: 0 0 0 1px var(--rule);
+  padding: 0;
+  cursor: pointer;
+}
+.reader-swatch.is-on {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.reader-swatch:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.reader-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-soft);
+}
+.reader-search input {
+  width: 170px;
+  padding: 4px 8px;
+}
+.reader-count {
+  font-size: 12px;
+  min-width: 32px;
+}
+.reader-state {
+  margin: 0 4px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reader-state.is-locked,
+.reader-state.is-error {
+  color: var(--warn);
+  background: var(--warn-soft);
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+.reader-loading {
+  padding: 40px;
+  text-align: center;
+}
+.reader-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper));
+  border-radius: 10px;
+  padding: 12px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  outline: none;
+}
+.rd-page {
+  position: relative;
+  flex: none;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.18);
+}
+.rd-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.rd-page .textLayer {
+  z-index: 1;
+}
+.reader-scroll.tool-highlight .textLayer :is(span, br) {
+  cursor: text;
+}
+.reader-scroll.tool-highlight .textLayer ::selection {
+  background: rgb(255 214 0 / 0.45);
+}
+/* 整層用「色彩增值」疊在頁面上：螢光筆底下的字看得見（和紙本螢光筆一樣） */
+.rd-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  mix-blend-mode: multiply;
+}
+.rd-page.tool-area .rd-overlay {
+  cursor: crosshair;
+}
+.rd-page.tool-note .rd-overlay {
+  cursor: copy;
+}
+.rd-page-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #bbb;
+  font-size: 28px;
+}
+.rd-annot {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.rd-annot-box {
+  position: absolute;
+  background: var(--c);
+  pointer-events: none;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.rd-annot.is-clickable .rd-annot-box {
+  pointer-events: auto;
+}
+.rd-annot.is-area.is-foreign .rd-annot-box {
+  background: transparent;
+  border: 2px solid var(--c);
+  mix-blend-mode: normal;
+}
+.rd-annot.is-mark .rd-annot-box {
+  background: transparent;
+  border-bottom: 2px solid var(--c);
+  mix-blend-mode: normal;
+}
+.rd-annot.is-selected .rd-annot-box {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.rd-annot-comment {
+  position: absolute;
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  pointer-events: none;
+}
+button.rd-annot.is-note {
+  inset: auto;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(0 0 0 / 0.25);
+  border-radius: 4px;
+  color: #3b3420;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+}
+button.rd-annot.is-note.is-selected {
+  outline: 2px solid var(--accent);
+}
+.rd-hit {
+  position: absolute;
+  background: rgb(255 140 0 / 0.25);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.rd-hit.is-current {
+  background: rgb(255 120 0 / 0.5);
+  outline: 2px solid rgb(230 100 0);
+}
+.rd-drag {
+  position: absolute;
+  border: 1.5px dashed var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  pointer-events: none;
+}
+.rd-popover {
+  position: absolute;
+  z-index: 10;
+  width: 260px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.2);
+  font-size: 13px;
+}
+.rd-popover-colors {
+  display: flex;
+  gap: 6px;
+}
+.rd-popover-text {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+}
+.rd-popover-readonly {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--ink-soft);
+}
+.rd-popover-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.rd-popover-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}

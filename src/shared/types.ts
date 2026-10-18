@@ -251,6 +251,56 @@ export interface TaskLinks {
   papers: PaperRef[]
 }
 
+// ---------- PDF 閱讀器 ----------
+
+export type HighlightColor = 'yellow' | 'green' | 'blue' | 'pink'
+
+/**
+ * PDF 裡的一個註記（螢光筆、框選、便利貼，或其他程式畫的重點）。
+ * 座標是 PDF 的座標（點、左下角為原點）。
+ */
+export interface PdfAnnot {
+  /** 註記的編號（PDF 的 /NM）；其他程式沒有編號時由位置算出 */
+  key: string
+  /** 第幾頁（從 0 開始） */
+  page: number
+  /** highlight：選字的螢光筆；area：框選的色塊；note：便利貼；mark：其他程式的底線、刪除線等 */
+  kind: 'highlight' | 'area' | 'note' | 'mark'
+  /** 本程式的四色；其他程式的顏色為 null，看 rgb */
+  color: HighlightColor | null
+  rgb: [number, number, number]
+  rect: [number, number, number, number]
+  /** 螢光筆每一行的四個角：x1 y1 x2 y2 x3 y3 x4 y4（左上、右上、左下、右下） */
+  quads: number[]
+  /** 註解文字 */
+  contents: string
+  /** 本程式畫的（可以改顏色、改註解）；其他程式畫的只能刪除 */
+  mine: boolean
+}
+
+export type PdfAnnotOp =
+  | { type: 'add'; annot: PdfAnnot }
+  | { type: 'remove'; key: string }
+  | { type: 'update'; key: string; contents?: string; color?: HighlightColor }
+
+export interface ReaderOpen {
+  /** 拿掉本程式管理的註記後的 PDF（給 pdf.js 畫頁面；註記另外畫在上面） */
+  data: Uint8Array
+  annots: PdfAnnot[]
+  /** 只能閱讀的原因（加密、格式特殊）；null 表示可以畫重點 */
+  readOnly: string | null
+  hasBackup: boolean
+}
+
+export interface ReaderStatus {
+  paperId: string
+  /** 檔案裡的註記，加上還沒寫進去的修改 */
+  annots: PdfAnnot[]
+  /** saved：都寫進去了；pending：等待寫入；locked：檔案被其他程式開著 */
+  state: 'saved' | 'pending' | 'locked' | 'error'
+  error?: string
+}
+
 /** 跨頁面跳轉：從文獻跳到節點、從節點跳到文獻、從每日建議跳到對話 */
 export type Focus =
   | { page: 'literature'; paperId: string }
@@ -457,6 +507,15 @@ export interface DeskApi {
     /** 複製到剪貼簿（純文字與 HTML，貼到 Word 會保留斜體） */
     copy(text: string, html: string): Promise<void>
   }
+  /** PDF 閱讀器 */
+  reader: {
+    open(paperId: string): Promise<ReaderOpen>
+    /** 送出修改（排隊寫回 PDF）；回傳目前狀態 */
+    queue(paperId: string, ops: PdfAnnotOp[]): Promise<ReaderStatus>
+    status(paperId: string): Promise<ReaderStatus | null>
+    /** 還原成第一次畫重點前的原檔 */
+    restore(paperId: string): Promise<void>
+  }
   mindmaps: {
     list(projectId: string): Promise<MindMap[]>
     create(projectId: string, name: string): Promise<MindMap>
@@ -562,6 +621,8 @@ export interface DeskApi {
   /** 主程式偵測到滑鼠移到細條上（enter），或離開邊欄一段時間（leave） */
   onSidebarHover(callback: (event: 'enter' | 'leave') => void): () => void
   onChanged(callback: () => void): () => void
+  /** PDF 閱讀器的存檔狀態（寫入完成、檔案被鎖住…） */
+  onReaderStatus(callback: (s: ReaderStatus) => void): () => void
   onAiStream(callback: (s: AiStream) => void): () => void
   /** 其他視窗要求完整視窗跳到某一頁 */
   onNavigate(callback: (f: Focus) => void): () => void
