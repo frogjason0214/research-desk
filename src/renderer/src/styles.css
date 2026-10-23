@@ -3030,3 +3030,151 @@ button.rd-annot.is-note.is-selected {
 .rd-translate-error {
   color: var(--danger);
 }
+
+/* ---------- 筆記：顯示模式、勾選清單、公式、連結 ---------- */
+.note-toolbar[hidden] {
+  display: none;
+}
+.notes-main {
+  container-type: inline-size;
+}
+.note-page.is-view {
+  max-width: 1040px;
+}
+.note-page.is-view .note-title {
+  cursor: default;
+}
+.note-editor.is-view:has(.note-toc) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 200px;
+  gap: 32px;
+  align-items: start;
+}
+.note-editor.is-view .note-prose {
+  font-size: 16px;
+  line-height: 1.85;
+  min-height: 0;
+  cursor: text;
+}
+.note-editor.is-view .note-prose h1,
+.note-editor.is-view .note-prose h2 {
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--rule);
+}
+.note-toc {
+  position: sticky;
+  top: 8px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  padding-left: 12px;
+  border-left: 1px solid var(--rule);
+  font-size: 13px;
+}
+.note-toc-title {
+  margin: 0 0 6px;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+.note-toc ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.note-toc li {
+  margin: 2px 0;
+}
+.note-toc .link-btn {
+  text-align: left;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.note-toc .link-btn:hover {
+  color: var(--accent);
+}
+@container (max-width: 760px) {
+  .note-editor.is-view:has(.note-toc) {
+    display: block;
+  }
+  .note-toc {
+    display: none;
+  }
+}
+.note-mode {
+  display: inline-flex;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.note-mode button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.note-mode button.is-on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.note-prose ul[data-type='taskList'] {
+  list-style: none;
+  padding-left: 0.2em;
+}
+.note-prose ul[data-type='taskList'] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.note-prose ul[data-type='taskList'] li > label {
+  flex: none;
+  margin-top: 0.3em;
+  user-select: none;
+}
+.note-prose ul[data-type='taskList'] li > label input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.note-prose ul[data-type='taskList'] li > div {
+  flex: 1;
+  min-width: 0;
+}
+.note-prose ul[data-type='taskList'] li[data-checked='true'] > div {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+}
+.note-prose a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.note-editor:not(.is-view) .note-prose a {
+  cursor: text;
+}
+.note-math-hidden {
+  display: none;
+}
+.note-math-source {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--accent);
+}
+.note-math {
+  cursor: pointer;
+}
+.note-editor.is-view .note-math {
+  cursor: inherit;
+}
+.note-math.is-display {
+  display: block;
+  text-align: center;
+  margin: 0.4em 0;
+}
+.note-math .katex-display {
+  margin: 0;
+}

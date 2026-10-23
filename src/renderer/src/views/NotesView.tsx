@@ -1,9 +1,10 @@
-import { ChevronDown, ChevronRight, FileDown, FilePlus, FileText, FileUp, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronRight, FileDown, FilePlus, FileText, FileUp, PencilLine, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Focus, NotePage } from '../../../shared/types'
 import { IconButton } from '../components/IconButton'
 import { markdownToPage } from '../notes/markdown'
 import { NoteEditor } from '../notes/NoteEditor'
+import { shortcut } from '../platform'
 import { desk } from '../useDesk'
 
 type Run = (fn: () => Promise<unknown>) => Promise<void>
@@ -40,6 +41,8 @@ export function NotesView({ projectId, run, onNavigate }: { projectId: string; r
   const [showTrash, setShowTrash] = useState(false)
   const [drop, setDrop] = useState<Drop | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // 有內容的頁面打開先顯示；空白頁、新頁面直接編輯
+  const [mode, setMode] = useState<'edit' | 'view'>('view')
 
   const load = useCallback(() => desk.notes.pages(projectId).then(setPages), [projectId])
   useEffect(() => {
@@ -74,7 +77,24 @@ export function NotesView({ projectId, run, onNavigate }: { projectId: string; r
   }, [current, live, children, pages.length])
   useEffect(() => {
     if (currentId) remember.set(`notes.page.${projectId}`, currentId)
+    setMode(currentId && currentId === fresh ? 'edit' : 'view')
+    // 只在換頁時決定
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId, projectId])
+
+  // Ctrl+E（Mac 是 ⌘E）切換編輯／顯示；在捕獲階段處理，免得編輯器拿去當行內程式碼
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.isComposing || e.keyCode === 229) return
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'e') return
+      if (!current) return
+      e.preventDefault()
+      e.stopPropagation()
+      setMode((m) => (m === 'edit' ? 'view' : 'edit'))
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [current])
 
   const toggle = (id: string, open?: boolean): void =>
     setExpanded((prev) => {
@@ -231,10 +251,18 @@ export function NotesView({ projectId, run, onNavigate }: { projectId: string; r
           </p>
         )}
         {current ? (
-          <div className="note-page" key={current.id}>
+          <div className={`note-page${mode === 'view' ? ' is-view' : ''}`} key={current.id}>
             <div className="note-page-head">
               <Breadcrumb page={current} pages={live} onOpen={setCurrentId} />
               <span className="spacer" />
+              <span className="note-mode" role="group" aria-label={`編輯或顯示（${shortcut('E')} 切換）`}>
+                <button className={mode === 'edit' ? 'is-on' : ''} aria-pressed={mode === 'edit'} title={`編輯（${shortcut('E')}）`} onClick={() => setMode('edit')}>
+                  <PencilLine size={14} aria-hidden /> 編輯
+                </button>
+                <button className={mode === 'view' ? 'is-on' : ''} aria-pressed={mode === 'view'} title={`顯示（${shortcut('E')}）`} onClick={() => setMode('view')}>
+                  <BookOpen size={14} aria-hidden /> 顯示
+                </button>
+              </span>
               <IconButton
                 icon={FileDown}
                 label="匯出這一頁成 .md"
@@ -248,13 +276,16 @@ export function NotesView({ projectId, run, onNavigate }: { projectId: string; r
                 }
               />
             </div>
-            <PageTitle page={current} run={run} autoFocus={fresh === current.id} />
+            <PageTitle page={current} run={run} autoFocus={fresh === current.id} readOnly={mode === 'view'} />
             <NoteEditor
               pageId={current.id}
               projectId={projectId}
               onNavigate={onNavigate}
               onError={setError}
               autoFocus={false}
+              mode={mode}
+              onLoaded={(hasContent) => !hasContent && setMode('edit')}
+              onRequestEdit={() => setMode('edit')}
             />
           </div>
         ) : (
@@ -295,7 +326,7 @@ function Breadcrumb({ page, pages, onOpen }: { page: NotePage; pages: NotePage[]
   )
 }
 
-function PageTitle({ page, run, autoFocus }: { page: NotePage; run: Run; autoFocus: boolean }) {
+function PageTitle({ page, run, autoFocus, readOnly }: { page: NotePage; run: Run; autoFocus: boolean; readOnly: boolean }) {
   const input = useRef<HTMLInputElement>(null)
   const timer = useRef<number | undefined>(undefined)
   useEffect(() => {
@@ -316,6 +347,7 @@ function PageTitle({ page, run, autoFocus }: { page: NotePage; run: Run; autoFoc
       className="note-title"
       defaultValue={page.title}
       placeholder="未命名"
+      readOnly={readOnly}
       aria-label="頁面標題"
       onChange={() => {
         window.clearTimeout(timer.current)

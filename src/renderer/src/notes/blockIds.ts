@@ -9,6 +9,7 @@ export const BLOCK_TYPES = [
   'heading',
   'bulletList',
   'orderedList',
+  'taskList',
   'blockquote',
   'codeBlock',
   'horizontalRule',

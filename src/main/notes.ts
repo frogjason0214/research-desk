@@ -237,6 +237,8 @@ function inline(nodes: PmNode[] | undefined, image: (src: string) => string): st
         else if (m.type === 'strike') t = `~~${t}~~`
         else if (m.type === 'code') t = `\`${t}\``
       }
+      const link = n.marks?.find((m) => m.type === 'link')
+      if (link?.attrs?.href) t = `[${t}](${String(link.attrs.href)})`
       return t
     })
     .join('')
@@ -266,6 +268,16 @@ export function blockToMarkdown(node: PmNode, image: (src: string) => string, in
           const bullet = node.type === 'bulletList' ? '- ' : `${Number(node.attrs?.start ?? 1) + i}. `
           const [first, ...rest] = item.content ?? []
           const lines = [indent + bullet + (first ? blockToMarkdown(first, image).trimStart() : '')]
+          for (const r of rest) lines.push(blockToMarkdown(r, image, indent + '  '))
+          return lines.join('\n')
+        })
+        .join('\n')
+    case 'taskList':
+      return children
+        .map((item) => {
+          const [first, ...rest] = item.content ?? []
+          const box = item.attrs?.checked ? '- [x] ' : '- [ ] '
+          const lines = [indent + box + (first ? blockToMarkdown(first, image).trimStart() : '')]
           for (const r of rest) lines.push(blockToMarkdown(r, image, indent + '  '))
           return lines.join('\n')
         })
