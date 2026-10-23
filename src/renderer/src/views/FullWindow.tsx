@@ -11,7 +11,7 @@ import {
   X,
   type LucideIcon
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Focus, Milestone, UpdateStatus } from '../../../shared/types'
 import { AiSettings } from '../components/AiSettings'
 import { TranslateSettings } from '../components/TranslateSettings'
@@ -55,6 +55,19 @@ export function FullWindow() {
   // 邊欄（例如每日建議的「繼續討論」）要求跳到某一頁
   useEffect(() => desk.onNavigate(navigate), [])
   const [newProject, setNewProject] = useState('')
+  // 「文獻」去過之後就一直留著（切到別頁只是藏起來），回來時選的文獻、篩選、閱讀器都還在
+  const [litVisited, setLitVisited] = useState(false)
+  useEffect(() => {
+    if (page === 'literature') setLitVisited(true)
+  }, [page])
+  // 文獻頁右邊的詳細資料跟著整個主畫面捲動：離開時記下位置，回來時捲回去
+  const mainRef = useRef<HTMLElement>(null)
+  const litScroll = useRef<{ project: string; top: number } | null>(null)
+  const projectId = state?.projectId ?? null
+  useLayoutEffect(() => {
+    const saved = litScroll.current
+    if (page === 'literature' && mainRef.current && saved?.project === projectId) mainRef.current.scrollTop = saved.top
+  }, [page, projectId])
 
   if (!state) return null
   const current = state.projects.find((p) => p.id === state.projectId)
@@ -116,7 +129,13 @@ export function FullWindow() {
         </button>
       </nav>
 
-      <main className="main">
+      <main
+        className="main"
+        ref={mainRef}
+        onScroll={(e) => {
+          if (page === 'literature' && projectId) litScroll.current = { project: projectId, top: e.currentTarget.scrollTop }
+        }}
+      >
         <SyncBanner status={state.status} onRetry={() => run(() => desk.sync.now())} />
         <GoogleBanner status={state.status} onSignIn={() => run(() => desk.google.signIn())} />
         <UpdateBanner status={state.status} onInstall={() => run(() => desk.update.install())} />
@@ -142,14 +161,17 @@ export function FullWindow() {
             {page === 'today' && (
               <TodayView state={state} run={run} onNavigate={navigate} onOpenMilestones={() => setPage('settings')} />
             )}
-            {page === 'literature' && (
-              <LiteratureView
-                projectId={current.id}
-                tasks={state.tasks}
-                run={run}
-                focusPaperId={focus?.page === 'literature' ? focus.paperId : null}
-                onNavigate={navigate}
-              />
+            {(litVisited || page === 'literature') && (
+              <div className={`page-keep${page === 'literature' ? '' : ' is-hidden'}`} aria-hidden={page !== 'literature'}>
+                <LiteratureView
+                  key={current.id}
+                  projectId={current.id}
+                  tasks={state.tasks}
+                  run={run}
+                  focusPaperId={focus?.page === 'literature' ? focus.paperId : null}
+                  onNavigate={navigate}
+                />
+              </div>
             )}
             {page === 'mindmap' && (
               <MindMapView

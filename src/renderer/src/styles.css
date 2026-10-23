@@ -583,6 +583,7 @@ input[type='checkbox'] {
 }
 
 .main {
+  position: relative;
   overflow-y: auto;
   padding: 28px 40px 48px;
 }
@@ -3177,4 +3178,16 @@ button.rd-annot.is-note.is-selected {
 }
 .note-math .katex-display {
   margin: 0;
+}
+
+/* 留著但藏起來的頁面：保留版面（捲動位置、閱讀器的頁面），只是看不到也點不到 */
+.page-keep.is-hidden {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
 }

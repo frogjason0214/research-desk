@@ -40,8 +40,13 @@ export function LiteratureView({
 }) {
   const [papers, setPapers] = useState<Paper[]>([])
   const [selected, setSelected] = useState<string | null>(focusPaperId)
+  // 正在閱讀的 PDF：整個文獻頁換成閱讀器
+  const [reading, setReading] = useState<string | null>(null)
+  // 從別處跳來指定一篇：正在讀別篇的話先關掉閱讀器
   useEffect(() => {
-    if (focusPaperId) setSelected(focusPaperId)
+    if (!focusPaperId) return
+    setSelected(focusPaperId)
+    setReading((r) => (r && r !== focusPaperId ? null : r))
   }, [focusPaperId])
   const [filter, setFilter] = useState('')
   const [hits, setHits] = useState<PaperHit[] | null>(null)
@@ -81,8 +86,6 @@ export function LiteratureView({
     )
   }, [papers, filter])
   const current = papers.find((p) => p.id === selected) ?? null
-  // 正在閱讀的 PDF：整個文獻頁換成閱讀器
-  const [reading, setReading] = useState<string | null>(null)
   const readingPaper = papers.find((p) => p.id === reading && p.kind === 'pdf')
   if (readingPaper) return <ReaderView key={readingPaper.id} paper={readingPaper} onBack={() => setReading(null)} />
 
