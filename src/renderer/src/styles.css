@@ -3407,3 +3407,37 @@ button.rd-annot.is-note.is-selected {
   color: inherit;
   text-decoration: underline;
 }
+
+/* 筆記：匯出 Word 的範圍選單 */
+.note-export {
+  position: relative;
+  display: inline-flex;
+}
+.note-export-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.15);
+}
+.note-export-menu button {
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.note-export-menu button:hover {
+  background: var(--accent-soft);
+}

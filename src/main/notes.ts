@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { withLocator } from '../shared/citation'
-import type { NoteBlock, NoteBlockChanges, NotePage } from '../shared/types'
+import type { DocxExportResult, NoteBlock, NoteBlockChanges, NotePage, Paper } from '../shared/types'
+import { buildDocx, type DocxSection, type PmNode as DocxNode } from './docx'
 import type { Library } from './library'
 import { safeName } from './papers/organizer'
 import type { Store } from './store'
@@ -169,6 +170,51 @@ export function createNotesHandlers(store: Store, library: Library) {
       }
       fs.writeFileSync(target, pageToMarkdown(page.title, blocks, image, false), 'utf8')
       return target
+    },
+
+    /**
+     * 匯出成 Word：這一頁（可含子頁，依頁面樹的順序，垃圾桶裡的不算）。
+     * papers 是這個專案的文獻，用來重新產生引用與參考文獻。
+     */
+    exportDocx: async (pageId: string, includeChildren: boolean, target: string, papers: Paper[]): Promise<DocxExportResult> => {
+      const root = pageOf(pageId)
+      if (!root) throw new Error('找不到這一頁')
+      const all = pagesOf(root.project_id).filter((p) => !p.trashed_at)
+      const sections: DocxSection[] = []
+      const visit = (page: NotePage, depth: number): void => {
+        const rows = store.all<NoteBlock>('SELECT id, sort, content FROM note_blocks WHERE page_id = ? ORDER BY sort', [page.id])
+        const blocks = rows.flatMap((b): DocxNode[] => {
+          try {
+            return [JSON.parse(b.content) as DocxNode]
+          } catch {
+            return []
+          }
+        })
+        sections.push({ title: page.title, depth, blocks })
+        if (includeChildren) all.filter((p) => p.parent_id === page.id).forEach((p) => visit(p, depth + 1))
+      }
+      visit(root, 0)
+      const { buffer, warnings } = await buildDocx({
+        sections,
+        papers,
+        readImage: (src) => {
+          const rel = noteImagePath(src)
+          const file = rel && library.resolveNote(rel)
+          try {
+            return file ? fs.readFileSync(file) : null
+          } catch {
+            return null
+          }
+        }
+      })
+      try {
+        fs.writeFileSync(target, buffer)
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code
+        if (code === 'EBUSY' || code === 'EPERM' || code === 'EACCES') throw new Error('這個 Word 檔正被其他程式開啟，請關閉後再匯出一次')
+        throw err
+      }
+      return { file: target, ...warnings }
     },
 
     /**

@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, net, protocol, screen, shell } fro
 import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { AiStatus, AppStatus, Focus, PdfAnnotOp, SidebarLayout } from '../shared/types'
+import type { AiStatus, AppStatus, DocxExportResult, Focus, Paper, PdfAnnotOp, SidebarLayout } from '../shared/types'
 import { createProfessor } from './ai/professor'
 import { Gemini, GEMINI_MODEL } from './ai/gemini'
 import { Translator } from './ai/translate'
@@ -218,7 +218,7 @@ function registerIpc(): void {
   const data = createDataHandlers(store) as Record<string, (...args: never[]) => unknown>
   const mindmaps = createMindmapHandlers(store)
   // 會讀寫任意路徑的函式不直接開放給畫面，只透過下面的存檔／開檔視窗使用
-  const { exportMarkdown, readMarkdown, purgeOldTrash, ...notes } = createNotesHandlers(store, library)
+  const { exportMarkdown, exportDocx, readMarkdown, purgeOldTrash, ...notes } = createNotesHandlers(store, library)
   purgeOldTrash()
 
   const handlers: Record<string, (...args: never[]) => unknown> = {
@@ -241,6 +241,22 @@ function registerIpc(): void {
       const file = exportMarkdown(pageId, result.filePath)
       if (!testPath) shell.showItemInFolder(file)
       return true
+    },
+    'notes.exportDocx': async (pageId: string, title: string, includeChildren: boolean): Promise<DocxExportResult | null> => {
+      const testPath = process.env.RESEARCH_DESK_EXPORT_PATH
+      const result = testPath
+        ? { canceled: false, filePath: testPath.replace(/\.md$/i, '.docx') }
+        : await dialog.showSaveDialog({
+            title: '匯出 Word',
+            defaultPath: path.join(app.getPath('documents'), `${title.replace(/[\\/:*?"<>|]/g, '_') || '未命名'}.docx`),
+            filters: [{ name: 'Word 文件', extensions: ['docx'] }]
+          })
+      if (result.canceled || !result.filePath) return null
+      const page = store.get<{ project_id: string }>('SELECT project_id FROM note_pages WHERE id = ?', [pageId])
+      const list = page ? (papers.handlers['papers.list'](page.project_id) as Paper[]) : []
+      const out = await exportDocx(pageId, includeChildren, result.filePath, list)
+      if (!testPath) shell.showItemInFolder(out.file)
+      return out
     },
     'notes.pickMd': async (): Promise<{ name: string; markdown: string }[]> => {
       const testPaths = process.env.RESEARCH_DESK_IMPORT_PATHS

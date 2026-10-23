@@ -1,6 +1,6 @@
-import { BookOpen, ChevronDown, ChevronRight, FileDown, FilePlus, FileText, FileUp, PencilLine, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronRight, FileDown, FilePlus, FileText, FileType, FileUp, PencilLine, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { Focus, NotePage } from '../../../shared/types'
+import type { DocxExportResult, Focus, NotePage } from '../../../shared/types'
 import { IconButton } from '../components/IconButton'
 import { markdownToPage } from '../notes/markdown'
 import { NoteEditor } from '../notes/NoteEditor'
@@ -51,6 +51,9 @@ export function NotesView({
   const [showTrash, setShowTrash] = useState(false)
   const [drop, setDrop] = useState<Drop | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  // 匯出 Word：有子頁時先問範圍
+  const [askScope, setAskScope] = useState(false)
   // 有內容的頁面打開先顯示；空白頁、新頁面直接編輯
   const [mode, setMode] = useState<'edit' | 'view'>('view')
 
@@ -148,6 +151,20 @@ export function NotesView({
       if (!first) return
       await load()
       setCurrentId(first)
+    })
+  }
+
+  /** 匯出 Word；完成後提醒找不到的引用、轉不了的公式、缺少的圖片 */
+  const exportDocx = (includeChildren: boolean): void => {
+    setAskScope(false)
+    if (!current) return
+    const page = current
+    run(async () => {
+      // 讓編輯器先把還沒存的內容存進去（失去焦點時存檔）
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      await new Promise((r) => window.setTimeout(r, 150))
+      const result = await desk.notes.exportDocx(page.id, page.title, includeChildren)
+      if (result) setNotice(docxNotice(result))
     })
   }
 
@@ -262,6 +279,14 @@ export function NotesView({
       </aside>
 
       <section className="notes-main">
+        {notice && (
+          <p className="banner banner-info" role="status">
+            {notice}
+            <button className="link-btn" onClick={() => setNotice(null)}>
+              關閉
+            </button>
+          </p>
+        )}
         {error && (
           <p className="banner banner-error" role="alert">
             {error}
@@ -282,6 +307,23 @@ export function NotesView({
                 <button className={mode === 'view' ? 'is-on' : ''} aria-pressed={mode === 'view'} title={`顯示（${shortcut('E')}）`} onClick={() => setMode('view')}>
                   <BookOpen size={14} aria-hidden /> 顯示
                 </button>
+              </span>
+              <span className="note-export">
+                <IconButton
+                  icon={FileType}
+                  label="匯出 Word（.docx）"
+                  onClick={() => ((children.get(current.id) ?? []).length ? setAskScope(!askScope) : exportDocx(false))}
+                />
+                {askScope && (
+                  <span className="note-export-menu" role="menu">
+                    <button role="menuitem" onClick={() => exportDocx(true)}>
+                      這一頁＋子頁
+                    </button>
+                    <button role="menuitem" onClick={() => exportDocx(false)}>
+                      只有這一頁
+                    </button>
+                  </span>
+                )}
               </span>
               <IconButton
                 icon={FileDown}
@@ -413,4 +455,13 @@ function Trash({ pages, run }: { pages: NotePage[]; run: Run }) {
       })}
     </ul>
   )
+}
+
+function docxNotice(r: DocxExportResult): string {
+  const notes = [
+    r.missingCitations && `有 ${r.missingCitations} 個引用找不到文獻（保留原本的文字）`,
+    r.unconvertedMath && `有 ${r.unconvertedMath} 個公式無法轉成 Word 方程式（保留原始碼）`,
+    r.missingImages && `有 ${r.missingImages} 張圖片找不到或格式不支援`
+  ].filter(Boolean)
+  return notes.length ? `已匯出 Word。${notes.join('；')}。` : '已匯出 Word。'
 }

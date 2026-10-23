@@ -302,6 +302,14 @@ export interface ReaderStatus {
 }
 
 /** 跨頁面跳轉：從文獻跳到節點、從節點跳到文獻、從每日建議跳到對話 */
+/** 匯出 Word 的結果：要提醒使用者的數量 */
+export interface DocxExportResult {
+  file: string
+  missingCitations: number
+  unconvertedMath: number
+  missingImages: number
+}
+
 export type Focus =
   | { page: 'literature'; paperId: string }
   | { page: 'mindmap'; mapId: string; nodeId: string }
@@ -552,6 +560,8 @@ export interface DeskApi {
     importPage(projectId: string, parentId: string | null, title: string, contents: string[]): Promise<string>
     /** 加在一頁的最後面（內容是編輯器區塊 JSON） */
     appendBlocks(pageId: string, contents: string[]): Promise<void>
+    /** 匯出成 Word（跳出存檔視窗）；按取消回傳 null */
+    exportDocx(pageId: string, title: string, includeChildren: boolean): Promise<DocxExportResult | null>
   }
   marks: {
     list(mapId: string): Promise<MindMark[]>
