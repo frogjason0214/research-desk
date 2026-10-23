@@ -33,7 +33,17 @@ const remember = {
 }
 
 /** 筆記：左邊頁面樹，右邊頁面內容 */
-export function NotesView({ projectId, run, onNavigate }: { projectId: string; run: Run; onNavigate: (f: Focus) => void }) {
+export function NotesView({
+  projectId,
+  run,
+  onNavigate,
+  focusNoteId
+}: {
+  projectId: string
+  run: Run
+  onNavigate: (f: Focus) => void
+  focusNoteId?: string | null
+}) {
   const [pages, setPages] = useState<NotePage[]>([])
   const [currentId, setCurrentId] = useState<string | null>(() => remember.get(`notes.page.${projectId}`))
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(JSON.parse(remember.get(`notes.open.${projectId}`) ?? '[]') as string[]))
@@ -69,6 +79,16 @@ export function NotesView({ projectId, run, onNavigate }: { projectId: string; r
     const trashed = pages.filter((p) => p.trashed_at).sort((a, b) => (b.trashed_at ?? '').localeCompare(a.trashed_at ?? ''))
     return { live, trashed, children }
   }, [pages])
+
+  // 從別處（閱讀器「已加到筆記」）指定打開某一頁：上層頁面一併展開
+  useEffect(() => {
+    if (!focusNoteId) return
+    setCurrentId(focusNoteId)
+    const byId = new Map(pages.map((p) => [p.id, p]))
+    for (let cur = byId.get(byId.get(focusNoteId)?.parent_id ?? ''), n = 0; cur && n < 50; cur = byId.get(cur.parent_id ?? ''), n++) toggle(cur.id, true)
+    // 只在指定的頁改變時
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusNoteId, pages.length > 0])
 
   const current = live.find((p) => p.id === currentId) ?? null
   // 打開的頁面被刪掉（或第一次進來）時，改開第一頁

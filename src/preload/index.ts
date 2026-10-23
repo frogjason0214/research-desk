@@ -83,7 +83,8 @@ const api: DeskApi = {
     saveImage: call('notes.saveImage'),
     exportMd: call('notes.exportMd'),
     pickMd: call('notes.pickMd'),
-    importPage: call('notes.importPage')
+    importPage: call('notes.importPage'),
+    appendBlocks: call('notes.appendBlocks')
   },
   marks: {
     list: call('marks.list'),

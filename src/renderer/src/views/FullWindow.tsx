@@ -182,7 +182,15 @@ export function FullWindow() {
                 onNavigate={navigate}
               />
             )}
-            {page === 'notes' && <NotesView key={current.id} projectId={current.id} run={run} onNavigate={navigate} />}
+            {page === 'notes' && (
+              <NotesView
+                key={current.id}
+                projectId={current.id}
+                run={run}
+                onNavigate={navigate}
+                focusNoteId={focus?.page === 'notes' ? focus.noteId : null}
+              />
+            )}
             {page === 'professor' && (
               <ProfessorView
                 projectId={current.id}

@@ -3045,6 +3045,9 @@ button.rd-annot.is-note.is-selected {
 .note-page.is-view .note-title {
   cursor: default;
 }
+.note-editor {
+  position: relative;
+}
 .note-editor.is-view:has(.note-toc) {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 200px;
@@ -3190,4 +3193,34 @@ button.rd-annot.is-note.is-selected {
   overflow: hidden;
   visibility: hidden;
   pointer-events: none;
+}
+
+/* 筆記：改引用的頁碼 */
+.note-cite-pop {
+  position: absolute;
+  z-index: 20;
+  width: 260px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.2);
+  font-size: 13px;
+}
+.note-cite-pop label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.note-cite-pop input {
+  flex: 1;
+  min-width: 0;
+}
+.note-cite-pop-actions {
+  display: flex;
+  gap: 6px;
 }

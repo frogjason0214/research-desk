@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { withLocator } from '../shared/citation'
 import type { NoteBlock, NoteBlockChanges, NotePage } from '../shared/types'
 import type { Library } from './library'
 import { safeName } from './papers/organizer'
@@ -130,6 +131,17 @@ export function createNotesHandlers(store: Store, library: Library) {
       })
     },
 
+    /** 加在一頁的最後面（從閱讀器或文獻頁加重點），不必打開那一頁 */
+    'notes.appendBlocks': (pageId: string, contents: string[]): void => {
+      if (!pageOf(pageId)) throw new Error('找不到這一頁筆記，可能已經刪除')
+      const last = store.get<{ s: number | null }>('SELECT MAX(sort) AS s FROM note_blocks WHERE page_id = ?', [pageId])?.s
+      const start = last === null || last === undefined ? 0 : last + 1
+      store.write((tx) => {
+        contents.forEach((content, i) => tx.set('note_blocks', randomUUID(), { page_id: pageId, sort: start + i, content }))
+        tx.set('note_pages', pageId, { updated_at: now() })
+      })
+    },
+
     'notes.saveImage': (name: string, data: ArrayBuffer): string => {
       const ext = imageType(name) ? path.extname(name).toLowerCase() : '.png'
       const rel = `${ATTACHMENTS}/${randomUUID()}${ext}`
@@ -228,7 +240,7 @@ function inline(nodes: PmNode[] | undefined, image: (src: string) => string): st
   return (nodes ?? [])
     .map((n) => {
       if (n.type === 'hardBreak') return '  \n'
-      if (n.type === 'mention') return String(n.attrs?.label ?? '')
+      if (n.type === 'mention') return withLocator(String(n.attrs?.label ?? ''), n.attrs?.locator as string | undefined)
       if (n.type === 'image') return `![${n.attrs?.alt ?? ''}](${image(String(n.attrs?.src ?? ''))})`
       let t = n.text ?? ''
       for (const m of n.marks ?? []) {

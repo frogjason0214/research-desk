@@ -38,6 +38,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { inTextCitation } from '../../../shared/apa'
+import { withLocator } from '../../../shared/citation'
 import type { Focus, NoteBlock, NoteBlockChanges, Paper } from '../../../shared/types'
 import { IconButton } from '../components/IconButton'
 import { errorText } from '../importing'
@@ -197,6 +198,7 @@ export function NoteEditor({
   // 雙擊進編輯時，游標要放在雙擊的位置
   const editAt = useRef<number | null>(null)
   const [headings, setHeadings] = useState<Heading[]>([])
+  const [citeEdit, setCiteEdit] = useState<CiteEdit | null>(null)
 
   useEffect(() => {
     const load = (): void => void desk.papers.list(projectId).then((list) => (papers.current = list))
@@ -249,10 +251,10 @@ export function NoteEditor({
       }),
       Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true, HTMLAttributes: { target: '_blank', rel: 'noreferrer' } }),
       NoteMath,
-      Mention.configure({
+      CiteMention.configure({
         HTMLAttributes: { class: 'note-cite' },
-        renderText: ({ node }) => String(node.attrs.label ?? ''),
-        renderHTML: ({ options, node }) => ['span', { ...options.HTMLAttributes, title: '點一下打開這篇文獻' }, String(node.attrs.label ?? '')],
+        renderText: ({ node }) => citeText(node.attrs),
+        renderHTML: ({ options, node }) => ['span', { ...options.HTMLAttributes, title: '點一下打開這篇文獻' }, citeText(node.attrs)],
         suggestion: {
           char: '@',
           pluginKey: new PluginKey('cite'),
@@ -300,9 +302,24 @@ export function NoteEditor({
           const target = event.target as HTMLElement
           const cite = target.closest<HTMLElement>('.note-cite')
           if (cite?.dataset.id) {
+            // 編輯模式：可以改頁碼；顯示模式：打開文獻
+            if (view.editable) {
+              const pos = view.posAtDOM(cite, 0)
+              const box = cite.getBoundingClientRect()
+              const host = view.dom.closest('.note-editor')?.getBoundingClientRect()
+              setCiteEdit({
+                pos: view.state.doc.nodeAt(pos)?.type.name === 'mention' ? pos : pos - 1,
+                paperId: cite.dataset.id,
+                locator: cite.dataset.locator ?? '',
+                left: box.left - (host?.left ?? 0),
+                top: box.bottom - (host?.top ?? 0) + 4
+              })
+              return true
+            }
             onNavigate({ page: 'literature', paperId: cite.dataset.id })
             return true
           }
+          setCiteEdit(null)
           // 連結：顯示模式點一下打開；編輯模式要按住 Ctrl（Mac 是 ⌘）
           const link = target.closest<HTMLAnchorElement>('a[href]')
           if (link && (!view.editable || event.ctrlKey || event.metaKey)) {
@@ -456,8 +473,89 @@ export function NoteEditor({
       />
       <EditorContent editor={editor} className="note-content" />
       {view && <NoteToc headings={headings} />}
+      {citeEdit && !view && (
+        <CitePopover
+          edit={citeEdit}
+          onSave={(locator) => {
+            const node = editor.state.doc.nodeAt(citeEdit.pos)
+            if (node?.type.name === 'mention')
+              editor.chain().focus().command(({ tr }) => {
+                tr.setNodeMarkup(citeEdit.pos, undefined, { ...node.attrs, locator: locator.trim() || null })
+                return true
+              }).run()
+            setCiteEdit(null)
+          }}
+          onOpen={() => {
+            setCiteEdit(null)
+            onNavigate({ page: 'literature', paperId: citeEdit.paperId })
+          }}
+          onClose={() => setCiteEdit(null)}
+        />
+      )}
       <SuggestionMenu state={slashMenu} empty="沒有符合的區塊" />
       <SuggestionMenu state={citeMenu} empty="找不到文獻；先到「文獻」匯入" />
+    </div>
+  )
+}
+
+// ---------- 引用與頁碼 ----------
+
+/** @引用：多一個頁碼（locator），例如 p. 5、頁 5 */
+const CiteMention = Mention.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      locator: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-locator'),
+        renderHTML: (attrs) => (attrs.locator ? { 'data-locator': attrs.locator } : {})
+      }
+    }
+  }
+})
+
+const citeText = (attrs: Record<string, unknown>): string => withLocator(String(attrs.label ?? ''), attrs.locator as string | null)
+
+interface CiteEdit {
+  pos: number
+  paperId: string
+  locator: string
+  left: number
+  top: number
+}
+
+function CitePopover({ edit, onSave, onOpen, onClose }: { edit: CiteEdit; onSave: (locator: string) => void; onOpen: () => void; onClose: () => void }) {
+  const [value, setValue] = useState(edit.locator)
+  return (
+    <div className="note-cite-pop" style={{ left: Math.max(0, edit.left), top: edit.top }} onMouseDown={(e) => e.stopPropagation()}>
+      <label>
+        頁碼
+        <input
+          autoFocus
+          value={value}
+          placeholder="例如 p. 5、頁 5"
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing || e.keyCode === 229) return
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              onSave(value)
+            } else if (e.key === 'Escape') onClose()
+          }}
+        />
+      </label>
+      <div className="note-cite-pop-actions">
+        <button className="btn" onClick={onOpen}>
+          打開文獻
+        </button>
+        <span className="spacer" />
+        <button className="btn" onClick={onClose}>
+          取消
+        </button>
+        <button className="btn btn-primary" onClick={() => onSave(value)}>
+          儲存
+        </button>
+      </div>
     </div>
   )
 }

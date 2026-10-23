@@ -306,6 +306,7 @@ export type Focus =
   | { page: 'literature'; paperId: string }
   | { page: 'mindmap'; mapId: string; nodeId: string }
   | { page: 'professor'; conversationId: string }
+  | { page: 'notes'; noteId: string }
 
 // ---------- AI 教授 ----------
 
@@ -549,6 +550,8 @@ export interface DeskApi {
     /** 選 .md 檔（可以多選），回傳內容；圖片已經複製進筆記附件 */
     pickMd(): Promise<{ name: string; markdown: string }[]>
     importPage(projectId: string, parentId: string | null, title: string, contents: string[]): Promise<string>
+    /** 加在一頁的最後面（內容是編輯器區塊 JSON） */
+    appendBlocks(pageId: string, contents: string[]): Promise<void>
   }
   marks: {
     list(mapId: string): Promise<MindMark[]>
