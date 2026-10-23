@@ -15,6 +15,7 @@ import {
 import { IconButton } from '../components/IconButton'
 import { importPdfFile, isPdf, JobList, useImportJobs } from '../importing'
 import { ReaderView } from '../reader/ReaderView'
+import { HighlightsSection } from './HighlightsSection'
 import { desk } from '../useDesk'
 
 type Run = (fn: () => Promise<unknown>) => Promise<void>
@@ -42,6 +43,8 @@ export function LiteratureView({
   const [selected, setSelected] = useState<string | null>(focusPaperId)
   // 正在閱讀的 PDF：整個文獻頁換成閱讀器
   const [reading, setReading] = useState<string | null>(null)
+  // 從重點區點進閱讀器時要跳到的重點
+  const [readingAnnot, setReadingAnnot] = useState<string | null>(null)
   // 從別處跳來指定一篇：正在讀別篇的話先關掉閱讀器
   useEffect(() => {
     if (!focusPaperId) return
@@ -87,7 +90,7 @@ export function LiteratureView({
   }, [papers, filter])
   const current = papers.find((p) => p.id === selected) ?? null
   const readingPaper = papers.find((p) => p.id === reading && p.kind === 'pdf')
-  if (readingPaper) return <ReaderView key={readingPaper.id} paper={readingPaper} onBack={() => setReading(null)} />
+  if (readingPaper) return <ReaderView key={readingPaper.id} paper={readingPaper} onBack={() => setReading(null)} onNavigate={onNavigate} initialAnnot={readingAnnot} />
 
   return (
     <div
@@ -195,7 +198,10 @@ export function LiteratureView({
             run={run}
             onDeleted={() => setSelected(null)}
             onNavigate={onNavigate}
-            onRead={() => setReading(current.id)}
+            onRead={(annotKey) => {
+              setReadingAnnot(annotKey ?? null)
+              setReading(current.id)
+            }}
           />
         ) : (
           <div className="empty-card">
@@ -355,7 +361,7 @@ function PaperDetail({
   run: Run
   onDeleted: () => void
   onNavigate: (f: Focus) => void
-  onRead: () => void
+  onRead: (annotKey?: string) => void
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
@@ -380,7 +386,7 @@ function PaperDetail({
         <h2>{p.title || '（沒有標題）'}</h2>
         <div className="btn-row">
           {p.kind === 'pdf' && (
-            <button className="btn btn-primary btn-icon" onClick={onRead}>
+            <button className="btn btn-primary btn-icon" onClick={() => onRead()}>
               <BookOpenText size={18} strokeWidth={1.8} aria-hidden />
               閱讀
             </button>
@@ -413,6 +419,8 @@ function PaperDetail({
           <p className="muted">這份{p.kind === 'pdf' ? ' PDF 沒有文字層（可能是掃描檔）' : '網頁抓不到正文'}，全文搜尋與 AI 引用內文無法使用。</p>
         )}
       </header>
+
+      {p.kind === 'pdf' && <HighlightsSection paper={p} onRead={(key) => onRead(key)} onNavigate={onNavigate} />}
 
       <section className="paper-section">
         <h3>APA 參考文獻</h3>

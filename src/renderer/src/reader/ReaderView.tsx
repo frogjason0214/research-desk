@@ -7,6 +7,7 @@ import {
   ChevronUp,
   Copy,
   ExternalLink,
+  FilePlus2,
   Highlighter,
   History,
   Languages,
@@ -21,7 +22,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { HIGHLIGHT_COLORS, newAnnotKey, replayOps } from '../../../shared/annots'
-import type { HighlightColor, Paper, PdfAnnot, PdfAnnotOp, ReaderStatus } from '../../../shared/types'
+import type { Focus, HighlightColor, Paper, PdfAnnot, PdfAnnotOp, ReaderStatus } from '../../../shared/types'
 import { IconButton } from '../components/IconButton'
 import { errorText } from '../importing'
 import { shortcut } from '../platform'
@@ -29,6 +30,9 @@ import { desk } from '../useDesk'
 import { boxesToQuads, boxToPdfRect, mergeLines, type Box } from './geometry'
 import { pageText, PdfPage, type PageHandle, type PageHit, type Tool } from './PdfPage'
 import { openPdf } from './pdfjs'
+import { addHighlightsToNote } from '../notes/fromHighlight'
+import { PagePicker } from '../notes/PagePicker'
+import { forgetHighlights } from './highlightText'
 
 const COLOR_LABELS: Record<HighlightColor, string> = { yellow: '黃', green: '綠', blue: '藍', pink: '粉' }
 const SEND_DELAY_MS = 1200
@@ -69,7 +73,18 @@ const STATE_TEXT: Record<ReaderStatus['state'], string> = {
   error: '存檔失敗'
 }
 
-export function ReaderView({ paper, onBack }: { paper: Paper; onBack: () => void }) {
+export function ReaderView({
+  paper,
+  onBack,
+  onNavigate,
+  initialAnnot
+}: {
+  paper: Paper
+  onBack: () => void
+  onNavigate?: (f: Focus) => void
+  /** 打開時跳到這個重點並選好（從文獻頁的重點區點進來） */
+  initialAnnot?: string | null
+}) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null)
   const [sizes, setSizes] = useState<{ width: number; height: number }[]>([])
   const [readOnly, setReadOnly] = useState<string | null>(null)
@@ -88,6 +103,10 @@ export function ReaderView({ paper, onBack }: { paper: Paper; onBack: () => void
   const [matches, setMatches] = useState<{ page: number; start: number; end: number }[] | null>(null)
   const [matchIndex, setMatchIndex] = useState(0)
   const [actionError, setActionError] = useState<string | null>(null)
+  // 「加到筆記」：選頁中的重點、加好之後的提示
+  const [picking, setPicking] = useState<PdfAnnot | null>(null)
+  const [added, setAdded] = useState<{ id: string; title: string } | null>(null)
+  const labels = useRef<Promise<string[] | null> | null>(null)
   const [translation, setTranslation] = useState<Translation | null>(null)
   const scroller = useRef<HTMLDivElement | null>(null)
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
@@ -137,7 +156,11 @@ export function ReaderView({ paper, onBack }: { paper: Paper; onBack: () => void
       if (s.paperId !== paper.id) return
       setFileAnnots(s.annots)
       setSaveState(s)
-      if (s.state === 'saved') setHasBackup(true)
+      if (s.state === 'saved') {
+        setHasBackup(true)
+        // 文獻頁的重點區下次重新讀
+        forgetHighlights(paper.id)
+      }
     })
     return () => {
       cancelled = true
@@ -152,6 +175,15 @@ export function ReaderView({ paper, onBack }: { paper: Paper; onBack: () => void
     const width = scroller.current.clientWidth - 72 // 左右留白與捲軸
     const fit = Math.min(MAX_SCALE, Math.max(MIN_SCALE, width / Math.max(...sizes.map((s) => s.width))))
     setScale(Math.round(fit * 100) / 100)
+    // 從重點區點進來：跳到那個重點並選好
+    const target = initialAnnot ? fileAnnots.find((a) => a.key === initialAnnot) : undefined
+    if (target && sizes[target.page]) {
+      const y = pageTop(target.page, fit) + (sizes[target.page].height - target.rect[3]) * fit - 80
+      requestAnimationFrame(() => scroller.current?.scrollTo({ top: Math.max(0, y), behavior: 'auto' }))
+      setSelected(target.key)
+      justPlaced.current = false
+      return
+    }
     const last = Number(remember.get(pageKey) ?? 1)
     requestAnimationFrame(() => goToPage(Math.min(Math.max(1, last), sizes.length), fit, 'auto'))
     // 只在開啟時執行
@@ -410,9 +442,25 @@ export function ReaderView({ paper, onBack }: { paper: Paper; onBack: () => void
         if (cur && text !== cur.contents) apply({ type: 'update', key: a.key, contents: text })
       }}
       onRemove={() => removeAnnot(a.key)}
+      onAddToNote={() => {
+        setAdded(null)
+        setPicking(latest().find((x) => x.key === a.key) ?? a)
+      }}
       onClose={closePopover}
     />
   )
+
+  const addToNote = async (annot: PdfAnnot, page: { id: string; title: string }): Promise<void> => {
+    setPicking(null)
+    if (!pdf) return
+    try {
+      labels.current ??= pdf.getPageLabels().catch(() => null)
+      await addHighlightsToNote(paper, { pdf, labels: await labels.current }, [annot], page.id)
+      setAdded(page)
+    } catch (err) {
+      setActionError(errorText(err))
+    }
+  }
 
   const restore = (): void => {
     if (confirm !== 'restore') {
@@ -548,6 +596,29 @@ export function ReaderView({ paper, onBack }: { paper: Paper; onBack: () => void
       </div>
 
       {readOnly && <p className="banner banner-warn">{readOnly}</p>}
+      {added && (
+        <p className="reader-toast" role="status">
+          已加到「{added.title}」
+          {onNavigate && (
+            <button className="link-btn" onClick={() => onNavigate({ page: 'notes', noteId: added.id })}>
+              打開
+            </button>
+          )}
+          <button className="link-btn" onClick={() => setAdded(null)}>
+            關閉
+          </button>
+        </p>
+      )}
+      {picking && (
+        <div className="reader-picker">
+          <PagePicker
+            projectId={paper.project_id}
+            newTitle={`${paper.title || '文獻'} 重點`}
+            onPick={(page) => void addToNote(picking, page)}
+            onClose={() => setPicking(null)}
+          />
+        </div>
+      )}
       {confirm === 'restore' && <p className="banner banner-warn">再按一次「還原」會把 PDF 換回第一次畫重點前的原檔，畫過的重點和便利貼都會消失。</p>}
       {(loadError || actionError) && (
         <p className="banner banner-error" role="alert">
@@ -676,6 +747,7 @@ function AnnotPopover({
   onColor,
   onContents,
   onRemove,
+  onAddToNote,
   onClose
 }: {
   annot: PdfAnnot
@@ -685,6 +757,7 @@ function AnnotPopover({
   onColor: (c: HighlightColor) => void
   onContents: (text: string) => void
   onRemove: () => void
+  onAddToNote: () => void
   onClose: () => void
 }) {
   const text = useRef<HTMLTextAreaElement>(null)
@@ -735,6 +808,15 @@ function AnnotPopover({
       ) : (
         <p className="rd-popover-readonly">{annot.contents || (annot.mine ? '' : '其他程式畫的重點，只能刪除。')}</p>
       )}
+      <button
+        className="btn rd-popover-add"
+        onClick={() => {
+          if (text.current) onContents(text.current.value)
+          onAddToNote()
+        }}
+      >
+        <FilePlus2 size={14} aria-hidden /> 加到筆記
+      </button>
       <div className="rd-popover-actions">
         {!readOnly && (
           <button className={`btn${confirming ? ' btn-danger' : ''}`} onClick={onRemove}>

@@ -2726,6 +2726,7 @@ a.btn {
 /* ---------- PDF 閱讀器 ---------- */
 
 .reader {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -3223,4 +3224,186 @@ button.rd-annot.is-note.is-selected {
 .note-cite-pop-actions {
   display: flex;
   gap: 6px;
+}
+
+/* 加到筆記：選頁小選單 */
+.reader-picker {
+  position: absolute;
+  top: 48px;
+  right: 16px;
+  z-index: 30;
+}
+.page-picker {
+  width: 340px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+  font-size: 13px;
+}
+.page-picker-search {
+  width: 100%;
+}
+.page-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.page-picker-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.page-picker-list li.is-active {
+  background: var(--accent-soft);
+}
+.page-picker-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.page-picker-new {
+  color: var(--accent);
+  border-top: 1px solid var(--rule);
+  margin-top: 2px;
+}
+.page-picker-error {
+  margin: 0;
+  color: var(--danger);
+}
+.rd-popover-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* 文獻頁：重點區 */
+.hl-section {
+  position: relative;
+}
+.hl-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.hl-picker {
+  position: absolute;
+  right: 0;
+  top: 40px;
+  z-index: 30;
+}
+.hl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.hl-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.hl-item > input {
+  margin-top: 10px;
+  flex: none;
+}
+.hl-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.hl-body:hover {
+  border-color: var(--rule);
+  background: var(--panel);
+}
+.hl-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.hl-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgb(0 0 0 / 0.15);
+}
+.hl-text {
+  line-height: 1.6;
+}
+.hl-comment {
+  font-size: 13px;
+  color: var(--ink-soft);
+  padding-left: 8px;
+  border-left: 2px solid var(--rule);
+  white-space: pre-wrap;
+}
+.hl-thumb {
+  max-width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  align-self: flex-start;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+.hl-section .section-head {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+/* ProseMirror 預設讓不可編輯的節點換行；引用不要從中間斷開 */
+.note-prose .note-cite[contenteditable='false'] {
+  white-space: nowrap;
+}
+
+/* 閱讀器：「已加到筆記」浮在下方，不推動版面 */
+.reader-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 25;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.25);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.reader-toast .link-btn {
+  color: inherit;
+  text-decoration: underline;
 }
