@@ -84,7 +84,7 @@ function setIgnoring(ignore: boolean): void {
 function watchCursor(): void {
   let outsideSince: number | null = null
   setInterval(() => {
-    if (!sidebar) return
+    if (!sidebar || !sidebar.isVisible()) return
     const p = screen.getCursorScreenPoint()
     const b = sidebar.getBounds()
     const right = b.x + b.width
@@ -131,14 +131,26 @@ function createSidebar(): void {
   // Mac：切換桌面或其他 App 全螢幕時也看得到邊欄
   if (IS_MAC) sidebar.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   sidebar.setIgnoreMouseEvents(true)
-  sidebar.once('ready-to-show', () => sidebar?.showInactive())
+  sidebar.once('ready-to-show', () => updateSidebarVisibility())
   sidebar.on('closed', () => (sidebar = null))
   loadView(sidebar, 'sidebar')
+}
+
+/** 完整視窗在畫面上時把邊欄藏起來；完整視窗關掉或最小化時，邊欄回到右側細條 */
+function updateSidebarVisibility(): void {
+  if (!sidebar) return
+  const fullOnScreen = !!full && full.isVisible() && !full.isMinimized()
+  if (fullOnScreen) {
+    if (sidebar.isVisible()) sidebar.hide()
+  } else if (!sidebar.isVisible()) {
+    sidebar.showInactive()
+  }
 }
 
 /** 開啟完整視窗；給 focus 時跳到指定的頁面（例如從邊欄的每日建議跳到對話） */
 function openFull(focus?: Focus): void {
   if (full) {
+    if (full.isMinimized()) full.restore()
     full.show()
     full.focus()
     if (focus) full.webContents.send('desk:navigate', focus)
@@ -155,8 +167,15 @@ function openFull(focus?: Focus): void {
     webPreferences: webPreferences()
   })
   full.once('ready-to-show', () => full?.show())
+  full.on('show', updateSidebarVisibility)
+  full.on('hide', updateSidebarVisibility)
+  full.on('minimize', updateSidebarVisibility)
+  full.on('restore', updateSidebarVisibility)
   if (focus) full.webContents.once('did-finish-load', () => full?.webContents.send('desk:navigate', focus))
-  full.on('closed', () => (full = null))
+  full.on('closed', () => {
+    full = null
+    updateSidebarVisibility()
+  })
   // 畫面裡的外部連結（例如「在 Google 日曆開啟」）用預設瀏覽器開
   full.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) shell.openExternal(url)
