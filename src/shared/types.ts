@@ -564,6 +564,13 @@ export interface DeskApi {
     forPaper(paperId: string): Promise<NodeRef[]>
     forTasks(projectId: string): Promise<Record<string, TaskLinks>>
   }
+  translate: {
+    status(): Promise<{ hasKey: boolean }>
+    setKey(key: string): Promise<void>
+    clearKey(): Promise<void>
+    /** 中文翻成英文，其他翻成繁體中文 */
+    text(text: string): Promise<{ text: string; target: 'zh-TW' | 'en' }>
+  }
   ai: {
     status(): Promise<AiStatus>
     setKey(key: string): Promise<void>

@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url'
 import type { AiStatus, AppStatus, Focus, PdfAnnotOp, SidebarLayout } from '../shared/types'
 import { createProfessor } from './ai/professor'
 import { Gemini, GEMINI_MODEL } from './ai/gemini'
+import { Translator } from './ai/translate'
 import { createPapers } from './papers'
 import { Organizer } from './papers/organizer'
 import { createReader } from './papers/reader'
@@ -34,6 +35,7 @@ let library: Library
 let google: ReturnType<typeof createGoogle>
 let updater: ReturnType<typeof createUpdater>
 let gemini: Gemini
+let translator: Translator
 let papers: ReturnType<typeof createPapers>
 let reader: ReturnType<typeof createReader> | undefined
 let professor: ReturnType<typeof createProfessor>
@@ -313,6 +315,10 @@ function registerIpc(): void {
       config.openAlexKey = key.trim() || undefined
       saveConfig(config)
     },
+    'translate.status': () => ({ hasKey: translator.hasKey }),
+    'translate.setKey': (key: string) => translator.setKey(key),
+    'translate.clearKey': () => translator.clearKey(),
+    'translate.text': (text: string) => translator.translate(text),
     'ai.setKey': (key: string) => gemini.setKey(key),
     'ai.clearKey': () => gemini.clearKey(),
     'ai.setAutoFill': (on: boolean) => {
@@ -412,6 +418,7 @@ if (!app.requestSingleInstanceLock()) {
     updater = createUpdater({ onChange: broadcastChanged, beforeInstall: flushBeforeQuit })
 
     gemini = new Gemini(path.join(app.getPath('userData'), 'gemini-key.bin'))
+    translator = new Translator(path.join(app.getPath('userData'), 'translate-key.bin'))
     papers = createPapers({
       store,
       library,

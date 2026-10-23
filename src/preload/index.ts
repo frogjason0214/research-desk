@@ -99,6 +99,12 @@ const api: DeskApi = {
     forPaper: call('links.forPaper'),
     forTasks: call('links.forTasks')
   },
+  translate: {
+    status: call('translate.status'),
+    setKey: call('translate.setKey'),
+    clearKey: call('translate.clearKey'),
+    text: call('translate.text')
+  },
   ai: {
     status: call('ai.status'),
     setKey: call('ai.setKey'),

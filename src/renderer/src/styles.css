@@ -2825,6 +2825,7 @@ a.btn {
   text-align: center;
 }
 .reader-scroll {
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: auto;
@@ -2988,4 +2989,44 @@ button.rd-annot.is-note.is-selected {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+/* 閱讀器：選字翻譯 */
+.rd-translate {
+  position: absolute;
+  z-index: 11;
+}
+.rd-translate-offer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.16);
+}
+.rd-translate-box {
+  width: 360px;
+  max-width: calc(100% - 24px);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.2);
+  font-size: 13px;
+}
+.rd-translate-box p {
+  margin: 0;
+}
+.rd-translate-text {
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  line-height: 1.6;
+  user-select: text;
+}
+.rd-translate-error {
+  color: var(--danger);
 }

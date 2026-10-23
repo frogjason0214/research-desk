@@ -5,9 +5,11 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
+  Copy,
   ExternalLink,
   Highlighter,
   History,
+  Languages,
   MousePointer2,
   Search,
   SquareDashed,
@@ -86,6 +88,7 @@ export function ReaderView({ paper, onBack }: { paper: Paper; onBack: () => void
   const [matches, setMatches] = useState<{ page: number; start: number; end: number }[] | null>(null)
   const [matchIndex, setMatchIndex] = useState(0)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [translation, setTranslation] = useState<Translation | null>(null)
   const scroller = useRef<HTMLDivElement | null>(null)
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null)
   const pages = useRef(new Map<number, PageHandle>())
@@ -245,8 +248,45 @@ export function ReaderView({ paper, onBack }: { paper: Paper; onBack: () => void
     mine: true
   })
 
+  /** 選取工具：放開滑鼠時在選取的文字旁邊放「翻譯」按鈕 */
+  const offerTranslation = (): void => {
+    const sel = window.getSelection()
+    const el = scroller.current
+    const text = sel && !sel.isCollapsed && sel.rangeCount ? sel.toString().trim() : ''
+    if (!el || !text || !el.contains(sel!.anchorNode)) {
+      setTranslation(null)
+      return
+    }
+    const rects = [...sel!.getRangeAt(0).getClientRects()].filter((r) => r.width > 0)
+    const last = rects[rects.length - 1]
+    if (!last) return
+    const box = el.getBoundingClientRect()
+    setTranslation({
+      text,
+      left: Math.max(0, last.right - box.left + el.scrollLeft - 40),
+      top: last.bottom - box.top + el.scrollTop + 6,
+      state: 'offer'
+    })
+  }
+
+  const translate = async (): Promise<void> => {
+    const t = translation
+    if (!t) return
+    setTranslation({ ...t, state: 'loading' })
+    try {
+      const r = await desk.translate.text(t.text)
+      setTranslation((cur) => (cur && cur.text === t.text ? { ...cur, state: 'done', result: r.text } : cur))
+    } catch (err) {
+      setTranslation((cur) => (cur && cur.text === t.text ? { ...cur, state: 'error', result: errorText(err) } : cur))
+    }
+  }
+
   /** 螢光筆：放開滑鼠時把選取的文字變成重點（可以跨頁） */
-  const onMouseUp = (): void => {
+  const onMouseUp = (e: React.MouseEvent): void => {
+    if (tool === 'select') {
+      if (!(e.target as HTMLElement).closest('.rd-translate, .rd-popover')) offerTranslation()
+      return
+    }
     if (tool !== 'highlight' || readOnly) return
     const sel = window.getSelection()
     if (!sel || sel.isCollapsed || !sel.rangeCount) return
@@ -324,6 +364,7 @@ export function ReaderView({ paper, onBack }: { paper: Paper; onBack: () => void
       e.preventDefault()
       removeAnnot(selected)
     } else if (e.key === 'Escape' && !typing) {
+      setTranslation(null)
       setSelected(null)
       setConfirm(null)
       setTool('select')
@@ -561,6 +602,67 @@ export function ReaderView({ paper, onBack }: { paper: Paper; onBack: () => void
               popover={popover}
             />
           ))}
+        {translation && tool === 'select' && (
+          <TranslationBox translation={translation} onTranslate={translate} onClose={() => setTranslation(null)} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+interface Translation {
+  text: string
+  left: number
+  top: number
+  state: 'offer' | 'loading' | 'done' | 'error'
+  /** 翻譯結果或錯誤訊息 */
+  result?: string
+}
+
+function TranslationBox({
+  translation: t,
+  onTranslate,
+  onClose
+}: {
+  translation: Translation
+  onTranslate: () => void
+  onClose: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+  if (t.state === 'offer')
+    return (
+      <button
+        className="btn rd-translate rd-translate-offer"
+        style={{ left: t.left, top: t.top }}
+        // 按下去時不要清掉選取
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onTranslate}
+      >
+        <Languages size={14} aria-hidden /> 翻譯
+      </button>
+    )
+  return (
+    <div className="rd-translate rd-translate-box" style={{ left: Math.max(0, t.left - 200), top: t.top }} onMouseUp={(e) => e.stopPropagation()}>
+      {t.state === 'loading' && <p className="muted">翻譯中…</p>}
+      {t.state === 'done' && <p className="rd-translate-text">{t.result}</p>}
+      {t.state === 'error' && <p className="rd-translate-error" role="alert">{t.result}</p>}
+      <div className="rd-popover-actions">
+        {t.state === 'done' ? (
+          <button
+            className="btn"
+            onClick={() => {
+              navigator.clipboard.writeText(t.result ?? '')
+              setCopied(true)
+            }}
+          >
+            <Copy size={14} aria-hidden /> {copied ? '已複製' : '複製'}
+          </button>
+        ) : (
+          <span />
+        )}
+        <button className="btn" onClick={onClose}>
+          關閉
+        </button>
       </div>
     </div>
   )

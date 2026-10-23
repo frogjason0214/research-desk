@@ -14,6 +14,7 @@ import {
 import { useEffect, useState } from 'react'
 import type { Focus, Milestone, UpdateStatus } from '../../../shared/types'
 import { AiSettings } from '../components/AiSettings'
+import { TranslateSettings } from '../components/TranslateSettings'
 import { ErrorBanner, GoogleBanner, SyncBanner, UpdateBanner } from '../components/Banners'
 import { CreateProject } from '../components/CreateProject'
 import { EditableTitle } from '../components/EditableTitle'
@@ -312,6 +313,8 @@ function SettingsView({ state, run, onDeleted }: { state: DeskState; run: Run; o
       <GoogleSettings status={state.status} run={run} />
 
       <AiSettings run={run} />
+
+      <TranslateSettings run={run} />
 
       <section>
         <h3>程式</h3>
