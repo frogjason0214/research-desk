@@ -1,7 +1,7 @@
 {
   "name": "research-desk",
   "productName": "Research Desk",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "心理學研究輔助桌面工具",
   "main": "./out/main/index.js",
   "scripts": {
